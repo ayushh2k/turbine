@@ -1,0 +1,301 @@
+use crate::types::{AppSettings, PaneConfig, WorkspaceConfig};
+use rusqlite::Connection;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use tauri::State;
+
+type DbState = Mutex<Connection>;
+
+// ---------------------------------------------------------------------------
+// Workspace CRUD
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn save_workspace(
+    db: State<'_, DbState>,
+    workspace: WorkspaceConfig,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    // Upsert workspace row
+    conn.execute(
+        "INSERT INTO workspaces (id, name, tab_color, tab_order, layout_json, is_active, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))
+         ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            tab_color = excluded.tab_color,
+            tab_order = excluded.tab_order,
+            layout_json = excluded.layout_json,
+            is_active = excluded.is_active,
+            updated_at = datetime('now')",
+        rusqlite::params![
+            workspace.id,
+            workspace.name,
+            workspace.tab_color,
+            workspace.tab_order,
+            workspace.layout_json,
+            workspace.is_active as i32,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Delete existing panes for this workspace, then re-insert
+    conn.execute(
+        "DELETE FROM panes WHERE workspace_id = ?1",
+        rusqlite::params![workspace.id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    for pane in &workspace.panes {
+        let env_json = serde_json::to_string(&pane.env_vars).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                pane.id,
+                pane.workspace_id,
+                pane.pane_type,
+                pane.working_directory,
+                pane.startup_command,
+                pane.auto_launch as i32,
+                env_json,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_workspaces(db: State<'_, DbState>) -> Result<Vec<WorkspaceConfig>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, name, tab_color, tab_order, layout_json, is_active FROM workspaces ORDER BY tab_order",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let workspace_rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i32>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, i32>(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut workspaces = Vec::new();
+
+    for row_result in workspace_rows {
+        let (id, name, tab_color, tab_order, layout_json, is_active) =
+            row_result.map_err(|e| e.to_string())?;
+
+        // Load panes for this workspace
+        let panes = load_panes_for_workspace(&conn, &id)?;
+
+        workspaces.push(WorkspaceConfig {
+            id,
+            name,
+            tab_color,
+            tab_order,
+            layout_json,
+            is_active: is_active != 0,
+            panes,
+        });
+    }
+
+    Ok(workspaces)
+}
+
+fn load_panes_for_workspace(conn: &Connection, workspace_id: &str) -> Result<Vec<PaneConfig>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json
+             FROM panes WHERE workspace_id = ?1",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let pane_rows = stmt
+        .query_map(rusqlite::params![workspace_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, i32>(5)?,
+                row.get::<_, Option<String>>(6)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut panes = Vec::new();
+    for pane_result in pane_rows {
+        let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json) =
+            pane_result.map_err(|e| e.to_string())?;
+
+        let env_vars: HashMap<String, String> = env_vars_json
+            .as_deref()
+            .map(|json| serde_json::from_str(json).unwrap_or_default())
+            .unwrap_or_default();
+
+        panes.push(PaneConfig {
+            id,
+            workspace_id: ws_id,
+            pane_type,
+            working_directory,
+            startup_command,
+            auto_launch: auto_launch != 0,
+            env_vars,
+        });
+    }
+
+    Ok(panes)
+}
+
+#[tauri::command]
+pub fn delete_workspace(db: State<'_, DbState>, workspace_id: String) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    // CASCADE will delete associated panes
+    conn.execute(
+        "DELETE FROM workspaces WHERE id = ?1",
+        rusqlite::params![workspace_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn save_settings(db: State<'_, DbState>, settings: AppSettings) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let pairs: Vec<(&str, String)> = vec![
+        ("theme", settings.theme),
+        ("auto_update_enabled", settings.auto_update_enabled.to_string()),
+        ("default_shell", settings.default_shell.unwrap_or_default()),
+        ("agent_launch_delay", settings.agent_launch_delay.to_string()),
+        (
+            "terminal_scrollback_lines",
+            settings.terminal_scrollback_lines.to_string(),
+        ),
+    ];
+
+    for (key, value) in pairs {
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![key, value],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // Save custom keybindings into the keybindings table as well
+    // (settings.custom_keybindings mirrors the keybindings table)
+    for (action, binding) in &settings.custom_keybindings {
+        conn.execute(
+            "INSERT INTO keybindings (action, binding) VALUES (?1, ?2)
+             ON CONFLICT(action) DO UPDATE SET binding = excluded.binding",
+            rusqlite::params![action, binding],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_settings(db: State<'_, DbState>) -> Result<AppSettings, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let get = |key: &str| -> Result<Option<String>, String> {
+        let mut stmt = conn
+            .prepare("SELECT value FROM settings WHERE key = ?1")
+            .map_err(|e| e.to_string())?;
+        let result = stmt
+            .query_row(rusqlite::params![key], |row| row.get::<_, String>(0))
+            .ok();
+        Ok(result)
+    };
+
+    let theme = get("theme")?.unwrap_or_else(|| "subnautica".to_string());
+    let auto_update_enabled = get("auto_update_enabled")?
+        .and_then(|v| v.parse::<bool>().ok())
+        .unwrap_or(true);
+    let default_shell = get("default_shell")?.filter(|s| !s.is_empty());
+    let agent_launch_delay = get("agent_launch_delay")?
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(500);
+    let terminal_scrollback_lines = get("terminal_scrollback_lines")?
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(10000);
+
+    // Load keybindings
+    let custom_keybindings = load_keybindings_inner(&conn)?;
+
+    Ok(AppSettings {
+        theme,
+        auto_update_enabled,
+        default_shell,
+        agent_launch_delay,
+        terminal_scrollback_lines,
+        custom_keybindings,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Keybindings
+// ---------------------------------------------------------------------------
+
+fn load_keybindings_inner(conn: &Connection) -> Result<HashMap<String, String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT action, binding FROM keybindings")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut map = HashMap::new();
+    for row in rows {
+        let (action, binding) = row.map_err(|e| e.to_string())?;
+        map.insert(action, binding);
+    }
+    Ok(map)
+}
+
+#[tauri::command]
+pub fn save_keybindings(
+    db: State<'_, DbState>,
+    keybindings: HashMap<String, String>,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    for (action, binding) in &keybindings {
+        conn.execute(
+            "INSERT INTO keybindings (action, binding) VALUES (?1, ?2)
+             ON CONFLICT(action) DO UPDATE SET binding = excluded.binding",
+            rusqlite::params![action, binding],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_keybindings(db: State<'_, DbState>) -> Result<HashMap<String, String>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    load_keybindings_inner(&conn)
+}
