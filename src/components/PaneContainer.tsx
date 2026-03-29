@@ -234,6 +234,39 @@ function LeafPane({
     setIsDragOver(false);
   }, []);
 
+  // Memoize callbacks passed to sub-components to prevent re-renders
+  const handleFocusPane = useCallback(() => onFocusPane(paneId), [onFocusPane, paneId]);
+  const handleSplitH = useCallback(() => onSplitH(paneId), [onSplitH, paneId]);
+  const handleSplitV = useCallback(() => onSplitV(paneId), [onSplitV, paneId]);
+  const handleClosePane = useCallback(() => onClosePane(paneId), [onClosePane, paneId]);
+  
+  const handleActiveFileChange = useCallback(
+    (path: string) => {
+      if (onPaneConfigChange) {
+        onPaneConfigChange(paneId, { workingDirectory: path });
+      }
+    },
+    [onPaneConfigChange, paneId]
+  );
+  
+  const handleAutoLaunchChange = useCallback(
+    (v: boolean) => {
+      if (onPaneConfigChange) {
+        onPaneConfigChange(paneId, { autoLaunch: v });
+      }
+    },
+    [onPaneConfigChange, paneId]
+  );
+  
+  const handleStartupCommandChange = useCallback(
+    (v: string | null) => {
+      if (onPaneConfigChange) {
+        onPaneConfigChange(paneId, { startupCommand: v });
+      }
+    },
+    [onPaneConfigChange, paneId]
+  );
+
   const leafClasses = [
     'pane-leaf',
     isFocused ? 'pane-leaf--focused' : '',
@@ -259,24 +292,20 @@ function LeafPane({
           paneId={paneId}
           cwd={pane.workingDirectory}
           env={pane.envVars}
-          onFocus={() => onFocusPane(paneId)}
+          onFocus={handleFocusPane}
           broadcastWrite={broadcastWrite}
           themeId={themeId}
-          onSplitH={() => onSplitH(paneId)}
-          onSplitV={() => onSplitV(paneId)}
-          onClosePane={() => onClosePane(paneId)}
+          onSplitH={handleSplitH}
+          onSplitV={handleSplitV}
+          onClosePane={handleClosePane}
         />
       )}
       {pane?.type === 'code_viewer' && pane.workingDirectory && (
         <CodeViewer
           paneId={paneId}
           filePath={pane.workingDirectory}
-          onFocus={() => onFocusPane(paneId)}
-          onActiveFileChange={
-            onPaneConfigChange
-              ? (path) => onPaneConfigChange(paneId, { workingDirectory: path })
-              : undefined
-          }
+          onFocus={handleFocusPane}
+          onActiveFileChange={onPaneConfigChange ? handleActiveFileChange : undefined}
         />
       )}
       {pane?.type === 'media_viewer' && pane.workingDirectory && (
@@ -296,21 +325,13 @@ function LeafPane({
         </div>
       )}
       <PaneToolbar
-        onSplitH={() => onSplitH(paneId)}
-        onSplitV={() => onSplitV(paneId)}
-        onClose={() => onClosePane(paneId)}
+        onSplitH={handleSplitH}
+        onSplitV={handleSplitV}
+        onClose={handleClosePane}
         autoLaunch={pane?.type === 'terminal' ? pane.autoLaunch : undefined}
         startupCommand={pane?.type === 'terminal' ? pane.startupCommand : undefined}
-        onAutoLaunchChange={
-          onPaneConfigChange && pane?.type === 'terminal'
-            ? (v) => onPaneConfigChange(paneId, { autoLaunch: v })
-            : undefined
-        }
-        onStartupCommandChange={
-          onPaneConfigChange && pane?.type === 'terminal'
-            ? (v) => onPaneConfigChange(paneId, { startupCommand: v })
-            : undefined
-        }
+        onAutoLaunchChange={onPaneConfigChange && pane?.type === 'terminal' ? handleAutoLaunchChange : undefined}
+        onStartupCommandChange={onPaneConfigChange && pane?.type === 'terminal' ? handleStartupCommandChange : undefined}
         processStatus={pane?.type === 'terminal' ? status : null}
         exitCode={exitCode}
         onRestart={pane?.type === 'terminal' ? restartPane : undefined}

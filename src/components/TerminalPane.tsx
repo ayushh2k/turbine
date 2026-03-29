@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, memo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { FitAddon } from '@xterm/addon-fit';
@@ -32,7 +32,7 @@ interface TerminalPaneProps {
   onClosePane?: () => void;
 }
 
-export function TerminalPane({
+function TerminalPaneInner({
   paneId,
   cwd = '.',
   env = {},
@@ -440,3 +440,5 @@ export function TerminalPane({
     </div>
   );
 }
+
+export const TerminalPane = memo(TerminalPaneInner);

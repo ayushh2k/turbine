@@ -41,6 +41,9 @@ export function CodeViewer({
 
   const syncActiveFilePath = useCallback(
     (nextFilePath: string) => {
+      if (activeFileRef.current === nextFilePath) {
+        return;
+      }
       activeFileRef.current = nextFilePath;
       setActiveFilePath(nextFilePath);
       onActiveFileChange?.(nextFilePath);

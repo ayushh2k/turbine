@@ -224,6 +224,24 @@ function App() {
   const handlePaneConfigChange = useCallback(
     (paneId: string, changes: Partial<import('./types').PaneConfig>) => {
       if (!activeWorkspaceId) return;
+
+      // Prevent no-op updates that cause infinite re-render cycles
+      const currentWorkspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeWorkspaceId);
+      const currentPane = currentWorkspace?.panes.find((p) => p.id === paneId);
+      
+      if (currentPane) {
+        let hasChanges = false;
+        for (const [key, value] of Object.entries(changes)) {
+          if (currentPane[key as keyof typeof currentPane] !== value) {
+            hasChanges = true;
+            break;
+          }
+        }
+        if (!hasChanges) {
+          return;
+        }
+      }
+
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
           w.id === activeWorkspaceId
@@ -504,25 +522,34 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ errorInfo });
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="app__error-boundary">
-          <h2>Something went wrong</h2>
+        <div className="app__error-boundary" style={{ padding: '20px', overflow: 'auto', background: '#222', color: '#fff' }}>
+          <h2 style={{ color: '#ff6b6b' }}>Something went wrong</h2>
           <p>{this.state.error?.message}</p>
-          <button onClick={() => this.setState({ hasError: false, error: null })}>
+          <pre style={{ fontSize: '11px', whiteSpace: 'pre-wrap', color: '#aaa', marginTop: '10px' }}>
+            {this.state.errorInfo?.componentStack}
+          </pre>
+          <button style={{ marginTop: '20px', padding: '8px 16px', background: '#00d2ff', border: 'none', color: '#000', cursor: 'pointer' }} onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}>
             Reload Workspace
           </button>
         </div>

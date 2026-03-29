@@ -34,6 +34,10 @@ export const usePtyStatusStore = create<PtyStatusState>((set) => ({
 
   setStatus: (paneId, status, exitCode) => {
     set((state) => {
+      const existing = state.statuses.get(paneId);
+      if (existing && existing.status === status && existing.exitCode === exitCode) {
+        return state;
+      }
       const next = new Map(state.statuses);
       next.set(paneId, { status, exitCode });
       return { statuses: next };
@@ -50,6 +54,10 @@ export const usePtyStatusStore = create<PtyStatusState>((set) => ({
 
   setPaneSize: (paneId, cols, rows) => {
     set((state) => {
+      const existing = state.paneSizes.get(paneId);
+      if (existing && existing.cols === cols && existing.rows === rows) {
+        return state;
+      }
       const next = new Map(state.paneSizes);
       next.set(paneId, { cols, rows });
       return { paneSizes: next };
