@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { keybindingManager } from './state/keybindingManager';
 import { launchAgents } from './state/agentLauncher';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { navigatePane, findLeafIds } from './state/layoutEngine';
+import { navigatePane, findLeafIds, movePane } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
 import { TabBar } from './components/TabBar';
@@ -90,6 +91,13 @@ function App() {
   useEffect(() => {
     applyTheme(settings.theme);
   }, [settings.theme]);
+
+  // Update window title when active workspace changes
+  useEffect(() => {
+    if (activeWorkspace) {
+      getCurrentWindow().setTitle(`Turbine \u2014 ${activeWorkspace.name}`).catch(() => {});
+    }
+  }, [activeWorkspace?.name]);
 
   // Persist on changes (debounced)
   useEffect(() => {
@@ -196,6 +204,19 @@ function App() {
       }));
     },
     [activeWorkspaceId],
+  );
+
+  const handleMovePane = useCallback(
+    (fromId: string, toId: string) => {
+      if (!activeWorkspace || !activeWorkspaceId) return;
+      const newLayout = movePane(activeWorkspace.layout, fromId, toId);
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
   );
 
   // Register keybindings
@@ -381,6 +402,7 @@ function App() {
               onClosePane={handleClosePane}
               broadcastWrite={activeBroadcastWrite}
               onPaneConfigChange={handlePaneConfigChange}
+              onMovePane={handleMovePane}
               themeId={settings.theme}
             />
           )}

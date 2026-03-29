@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type DragEvent } from 'react';
 import type { LayoutNode, PaneConfig } from '../types';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
@@ -17,6 +17,7 @@ interface PaneContainerProps {
   onClosePane: (paneId: string) => void;
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  onMovePane?: (fromId: string, toId: string) => void;
   themeId?: string;
 }
 
@@ -31,6 +32,7 @@ export function PaneContainer({
   onClosePane,
   broadcastWrite,
   onPaneConfigChange,
+  onMovePane,
   themeId,
 }: PaneContainerProps) {
   return (
@@ -46,6 +48,7 @@ export function PaneContainer({
         onClosePane={onClosePane}
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
+        onMovePane={onMovePane}
         themeId={themeId}
       />
     </div>
@@ -63,6 +66,7 @@ interface LayoutRendererProps {
   onClosePane: (paneId: string) => void;
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  onMovePane?: (fromId: string, toId: string) => void;
   themeId?: string;
 }
 
@@ -77,6 +81,7 @@ function LayoutRenderer({
   onClosePane,
   broadcastWrite,
   onPaneConfigChange,
+  onMovePane,
   themeId,
 }: LayoutRendererProps) {
   if (node.type === 'leaf') {
@@ -91,6 +96,7 @@ function LayoutRenderer({
         onClosePane={onClosePane}
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
+        onMovePane={onMovePane}
         themeId={themeId}
       />
     );
@@ -121,6 +127,7 @@ function LayoutRenderer({
           onClosePane={onClosePane}
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
+          onMovePane={onMovePane}
           themeId={themeId}
         />
       </div>
@@ -142,6 +149,7 @@ function LayoutRenderer({
           onClosePane={onClosePane}
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
+          onMovePane={onMovePane}
           themeId={themeId}
         />
       </div>
@@ -159,6 +167,7 @@ interface LeafPaneProps {
   onClosePane: (paneId: string) => void;
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  onMovePane?: (fromId: string, toId: string) => void;
   themeId?: string;
 }
 
@@ -172,6 +181,7 @@ function LeafPane({
   onClosePane,
   broadcastWrite,
   onPaneConfigChange,
+  onMovePane,
   themeId,
 }: LeafPaneProps) {
   const pane = panes.find((p) => p.id === paneId);
@@ -181,10 +191,67 @@ function LeafPane({
     shell: pane?.startupCommand,
   });
 
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.dataTransfer.setData('text/plain', paneId);
+      e.dataTransfer.effectAllowed = 'move';
+      setIsDragging(true);
+    },
+    [paneId],
+  );
+
+  const handleDragOver = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    },
+    [],
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const sourceId = e.dataTransfer.getData('text/plain');
+      if (sourceId && sourceId !== paneId && onMovePane) {
+        onMovePane(sourceId, paneId);
+      }
+    },
+    [paneId, onMovePane],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    setIsDragOver(false);
+  }, []);
+
+  const leafClasses = [
+    'pane-leaf',
+    isFocused ? 'pane-leaf--focused' : '',
+    isDragOver ? 'pane-leaf--drag-over' : '',
+    isDragging ? 'pane-leaf--dragging' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div
-      className={`pane-leaf ${isFocused ? 'pane-leaf--focused' : ''}`}
+      className={leafClasses}
       style={{ flex: 1 }}
+      draggable
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
     >
       {pane?.type === 'terminal' && (
         <TerminalPane

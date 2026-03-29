@@ -25,6 +25,15 @@
   border-color: var(--pane-border-active);
 }
 
+.pane-leaf--drag-over {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -2px;
+}
+
+.pane-leaf--dragging {
+  opacity: 0.5;
+}
+
 .pane-placeholder {
   display: flex;
   align-items: center;

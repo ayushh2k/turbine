@@ -5,6 +5,7 @@
   border-bottom: 1px solid var(--tab-bar-border);
   height: 36px;
   min-height: 36px;
+  padding-left: 78px; /* space for macOS traffic lights in overlay title bar */
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -138,4 +139,16 @@
 .tab-bar__new-btn:hover {
   color: var(--color-accent);
   background: var(--tab-bar-tab-hover-bg);
+}
+
+.tab-bar__tab-rename-input {
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: 2px;
+  color: var(--color-fg);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 4px;
+  width: 100px;
+  outline: none;
 }

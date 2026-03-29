@@ -59,21 +59,48 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     return () => document.removeEventListener('keydown', handleKey, true);
   }, [onClose]);
 
+  const handleTabKeyDown = useCallback(
+    (e: React.KeyboardEvent, index: number) => {
+      let nextIndex: number | null = null;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextIndex = (index + 1) % SECTIONS.length;
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        nextIndex = (index - 1 + SECTIONS.length) % SECTIONS.length;
+      }
+      if (nextIndex !== null) {
+        setActiveSection(SECTIONS[nextIndex].id);
+        // Focus the newly active tab button
+        const sidebar = e.currentTarget.parentElement;
+        if (sidebar) {
+          const buttons = sidebar.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+          buttons[nextIndex]?.focus();
+        }
+      }
+    },
+    [],
+  );
+
   return (
     <div className="settings-panel__backdrop" onClick={onClose}>
-      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-panel__sidebar">
-          {SECTIONS.map((section) => (
+      <div className="settings-panel" role="dialog" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-panel__sidebar" role="tablist" aria-label="Settings sections">
+          {SECTIONS.map((section, index) => (
             <button
               key={section.id}
+              role="tab"
+              aria-selected={activeSection === section.id}
+              tabIndex={activeSection === section.id ? 0 : -1}
               className={`settings-panel__tab ${activeSection === section.id ? 'settings-panel__tab--active' : ''}`}
               onClick={() => setActiveSection(section.id)}
+              onKeyDown={(e) => handleTabKeyDown(e, index)}
             >
               {section.label}
             </button>
           ))}
         </div>
-        <div className="settings-panel__content">
+        <div className="settings-panel__content" role="tabpanel" aria-label={`${activeSection} settings`}>
           {activeSection === 'general' && <GeneralSection />}
           {activeSection === 'terminal' && <TerminalSection />}
           {activeSection === 'keybindings' && <KeybindingsSection />}

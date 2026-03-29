@@ -100,6 +100,8 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
     <div className="command-palette__backdrop" onClick={onClose}>
       <div
         className="command-palette"
+        role="dialog"
+        aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -108,16 +110,22 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
           className="command-palette__input"
           type="text"
           placeholder="Type a command..."
+          aria-autocomplete="list"
+          aria-controls="command-palette-listbox"
+          aria-activedescendant={filtered[selectedIndex] ? `command-palette-option-${filtered[selectedIndex].id}` : undefined}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="command-palette__list" ref={listRef}>
+        <div className="command-palette__list" ref={listRef} id="command-palette-listbox" role="listbox" aria-label="Commands">
           {filtered.length === 0 && (
-            <div className="command-palette__empty">No matching commands</div>
+            <div className="command-palette__empty" aria-live="polite">No matching commands</div>
           )}
           {filtered.map((action, i) => (
             <div
               key={action.id}
+              id={`command-palette-option-${action.id}`}
+              role="option"
+              aria-selected={i === selectedIndex}
               className={`command-palette__item ${i === selectedIndex ? 'command-palette__item--selected' : ''}`}
               onClick={() => execute(action)}
               onMouseEnter={() => setSelectedIndex(i)}

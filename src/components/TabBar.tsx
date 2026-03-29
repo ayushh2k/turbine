@@ -15,13 +15,30 @@ export function TabBar({ onContextMenu }: TabBarProps) {
     createWorkspace,
     deleteWorkspace,
     reorderWorkspaces,
+    renameWorkspace,
   } = useWorkspaceStore();
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef(0);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
   const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
+
+  const handleDoubleClick = useCallback((ws: { id: string; name: string }) => {
+    setEditingId(ws.id);
+    setEditValue(ws.name);
+  }, []);
+
+  const commitRename = useCallback(() => {
+    if (editingId && editValue.trim()) {
+      renameWorkspace(editingId, editValue.trim());
+    }
+    setEditingId(null);
+    setEditValue('');
+  }, [editingId, editValue, renameWorkspace]);
 
   const handleDragStart = useCallback(
     (e: React.DragEvent, index: number) => {
@@ -83,6 +100,7 @@ export function TabBar({ onContextMenu }: TabBarProps) {
               key={ws.id}
               role="tab"
               aria-selected={isActive}
+              tabIndex={0}
               className={[
                 'tab-bar__tab',
                 isActive && 'tab-bar__tab--active',
@@ -108,7 +126,27 @@ export function TabBar({ onContextMenu }: TabBarProps) {
                   backgroundColor: ws.tabColor ?? 'var(--color-accent)',
                 }}
               />
-              <span className="tab-bar__tab-name">{ws.name}</span>
+              {editingId === ws.id ? (
+                <input
+                  className="tab-bar__tab-rename-input"
+                  value={editValue}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') { setEditingId(null); setEditValue(''); }
+                  }}
+                  onBlur={commitRename}
+                />
+              ) : (
+                <span
+                  className="tab-bar__tab-name"
+                  onDoubleClick={() => handleDoubleClick(ws)}
+                >
+                  {ws.name}
+                </span>
+              )}
               {ws.broadcastMode && (
                 <span
                   className="tab-bar__broadcast-badge"

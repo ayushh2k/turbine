@@ -14,3 +14,17 @@
 .terminal-pane__container .xterm {
   padding: 4px;
 }
+
+.terminal-pane__session-ended {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--color-fg);
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.8;
+  z-index: 5;
+}

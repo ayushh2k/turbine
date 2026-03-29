@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -10,6 +11,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { getXtermTheme } from '../themes/themeEngine';
 import { TerminalSearch } from './TerminalSearch';
 import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
+import { usePtyStatusStore } from '../hooks/usePtyStatus';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
@@ -41,6 +43,11 @@ export function TerminalPane({
 
   const scrollbackLines = useSettingsStore((s) => s.settings.terminalScrollbackLines);
 
+  // PTY process status for session-ended overlay
+  const ptyEntry = usePtyStatusStore((s) => s.statuses.get(paneId));
+  const processExited = ptyEntry != null && ptyEntry.status !== 'running';
+  const exitCode = ptyEntry?.exitCode;
+
   // Initialize terminal
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,6 +72,13 @@ export function TerminalPane({
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(searchAddon);
+
+    // Web links addon — make URLs in terminal output clickable
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      // Open URL in default browser via Tauri
+      window.open(uri, '_blank');
+    });
+    terminal.loadAddon(webLinksAddon);
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -233,6 +247,11 @@ export function TerminalPane({
         />
       )}
       <MediaOverlay items={mediaItems} onDismiss={dismissMedia} />
+      {processExited && (
+        <div className="terminal-pane__session-ended" aria-live="polite">
+          Process exited (code: {exitCode ?? 'unknown'}) — hover pane toolbar to restart
+        </div>
+      )}
     </div>
   );
 }
