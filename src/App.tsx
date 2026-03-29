@@ -47,9 +47,12 @@ function App() {
 
   // Startup: restore workspaces, settings, apply theme
   useEffect(() => {
+    let cancelled = false;
     async function init() {
       await loadSettings();
       await restoreAll();
+
+      if (cancelled) return;
 
       const { workspaces: ws, activeWorkspaceId: awId } = useWorkspaceStore.getState();
       if (ws.length === 0) {
@@ -74,6 +77,7 @@ function App() {
       setLoading(false);
     }
     init();
+    return () => { cancelled = true; };
   }, []);
 
   // Apply theme when it changes
@@ -89,40 +93,45 @@ function App() {
     return () => clearTimeout(timer);
   }, [workspaces, activeWorkspaceId, persistAll]);
 
-  // Layout operations
-  const handleSplitH = useCallback(
-    (paneId: string) => {
-      if (!activeWorkspace) return;
-      const newLayout = splitHorizontal(activeWorkspace.layout, paneId);
+  // Layout operations — helper to create PaneConfigs for new leaves after a split
+  const splitAndAddPanes = useCallback(
+    (splitFn: (layout: import('./types').LayoutNode, paneId: string) => import('./types').LayoutNode, paneId: string) => {
+      if (!activeWorkspace || !activeWorkspaceId) return;
+      const newLayout = splitFn(activeWorkspace.layout, paneId);
+      const existingIds = new Set(activeWorkspace.panes.map((p) => p.id));
+      const newLeafIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+      const newPanes = newLeafIds.map((id) => ({ ...createDefaultPane(activeWorkspaceId), id }));
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
-          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+          w.id === activeWorkspaceId
+            ? { ...w, layout: newLayout, panes: [...w.panes, ...newPanes] }
+            : w,
         ),
       }));
     },
     [activeWorkspace, activeWorkspaceId],
   );
 
+  const handleSplitH = useCallback(
+    (paneId: string) => splitAndAddPanes(splitHorizontal, paneId),
+    [splitAndAddPanes],
+  );
+
   const handleSplitV = useCallback(
-    (paneId: string) => {
-      if (!activeWorkspace) return;
-      const newLayout = splitVertical(activeWorkspace.layout, paneId);
-      useWorkspaceStore.setState((s) => ({
-        workspaces: s.workspaces.map((w) =>
-          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
-        ),
-      }));
-    },
-    [activeWorkspace, activeWorkspaceId],
+    (paneId: string) => splitAndAddPanes(splitVertical, paneId),
+    [splitAndAddPanes],
   );
 
   const handleClosePane = useCallback(
     (paneId: string) => {
-      if (!activeWorkspace) return;
+      if (!activeWorkspace || !activeWorkspaceId) return;
       const newLayout = closePane(activeWorkspace.layout, paneId);
+      const remainingIds = new Set(findLeafIds(newLayout));
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
-          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+          w.id === activeWorkspaceId
+            ? { ...w, layout: newLayout, panes: w.panes.filter((p) => remainingIds.has(p.id)) }
+            : w,
         ),
       }));
     },
