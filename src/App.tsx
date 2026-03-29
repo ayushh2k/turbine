@@ -6,11 +6,13 @@ import { launchAgents } from './state/agentLauncher';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
 import { navigatePane, findLeafIds } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
+import { usePtyStatusListener } from './hooks/usePtyStatus';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
 import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
+import { SettingsPanel } from './components/SettingsPanel';
 import { UpdateNotification } from './components/UpdateNotification';
 import type { PaneTemplate } from './types';
 import {
@@ -25,6 +27,7 @@ import './App.css';
 function App() {
   const [loading, setLoading] = useState(true);
   const [showPalette, setShowPalette] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
   const { handleContextMenu, menuElement: contextMenuElement } = useWorkspaceContextMenu();
 
@@ -41,6 +44,9 @@ function App() {
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const { broadcastWrite, broadcastMode, toggleBroadcast } = useBroadcast(focusedPaneId);
+
+  // Listen for PTY exit events and track per-pane process status
+  usePtyStatusListener();
 
   // Only pass broadcastWrite when broadcast mode is active
   const activeBroadcastWrite = broadcastMode ? broadcastWrite : undefined;
@@ -208,6 +214,7 @@ function App() {
       if (focusedPaneId) handleSplitV(focusedPaneId);
     });
     km.register('toggleBroadcast', toggleBroadcast);
+    km.register('openSettings', () => setShowSettings((v) => !v));
 
     // Workspace navigation
     km.register('nextWorkspace', () => {
@@ -279,6 +286,7 @@ function App() {
     const actions: PaletteAction[] = [
       { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', handler: () => createWorkspace() },
       { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', handler: toggleBroadcast },
+      { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', handler: () => setShowSettings(true) },
     ];
 
     // Workspace switching
@@ -383,6 +391,10 @@ function App() {
             actions={paletteActions}
             onClose={() => setShowPalette(false)}
           />
+        )}
+
+        {showSettings && (
+          <SettingsPanel onClose={() => setShowSettings(false)} />
         )}
 
         {contextMenuElement}

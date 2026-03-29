@@ -3,6 +3,7 @@ import type { LayoutNode, PaneConfig } from '../types';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
 import { PaneToolbar } from './PaneToolbar';
+import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
 
 interface PaneContainerProps {
@@ -79,61 +80,19 @@ function LayoutRenderer({
   themeId,
 }: LayoutRendererProps) {
   if (node.type === 'leaf') {
-    const pane = panes.find((p) => p.id === node.paneId);
-    const isFocused = node.paneId === focusedPaneId;
-
     return (
-      <div
-        className={`pane-leaf ${isFocused ? 'pane-leaf--focused' : ''}`}
-        style={{ flex: 1 }}
-      >
-        {pane?.type === 'terminal' && (
-          <TerminalPane
-            paneId={node.paneId}
-            cwd={pane.workingDirectory}
-            env={pane.envVars}
-            shell={pane.startupCommand}
-            onFocus={() => onFocusPane(node.paneId)}
-            broadcastWrite={broadcastWrite}
-            themeId={themeId}
-          />
-        )}
-        {pane?.type === 'code_viewer' && pane.workingDirectory && (
-          <CodeViewer
-            paneId={node.paneId}
-            filePath={pane.workingDirectory}
-            onFocus={() => onFocusPane(node.paneId)}
-          />
-        )}
-        {/* Placeholder for other pane types */}
-        {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && (
-          <div className="pane-placeholder">
-            {pane.type} — {node.paneId.slice(0, 8)}
-          </div>
-        )}
-        {!pane && (
-          <div className="pane-placeholder">
-            Pane {node.paneId.slice(0, 8)}
-          </div>
-        )}
-        <PaneToolbar
-          onSplitH={() => onSplitH(node.paneId)}
-          onSplitV={() => onSplitV(node.paneId)}
-          onClose={() => onClosePane(node.paneId)}
-          autoLaunch={pane?.autoLaunch}
-          startupCommand={pane?.startupCommand}
-          onAutoLaunchChange={
-            onPaneConfigChange
-              ? (v) => onPaneConfigChange(node.paneId, { autoLaunch: v })
-              : undefined
-          }
-          onStartupCommandChange={
-            onPaneConfigChange
-              ? (v) => onPaneConfigChange(node.paneId, { startupCommand: v })
-              : undefined
-          }
-        />
-      </div>
+      <LeafPane
+        paneId={node.paneId}
+        panes={panes}
+        isFocused={node.paneId === focusedPaneId}
+        onFocusPane={onFocusPane}
+        onSplitH={onSplitH}
+        onSplitV={onSplitV}
+        onClosePane={onClosePane}
+        broadcastWrite={broadcastWrite}
+        onPaneConfigChange={onPaneConfigChange}
+        themeId={themeId}
+      />
     );
   }
 
@@ -186,6 +145,95 @@ function LayoutRenderer({
           themeId={themeId}
         />
       </div>
+    </div>
+  );
+}
+
+interface LeafPaneProps {
+  paneId: string;
+  panes: PaneConfig[];
+  isFocused: boolean;
+  onFocusPane: (paneId: string) => void;
+  onSplitH: (paneId: string) => void;
+  onSplitV: (paneId: string) => void;
+  onClosePane: (paneId: string) => void;
+  broadcastWrite?: (data: Uint8Array) => void;
+  onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  themeId?: string;
+}
+
+function LeafPane({
+  paneId,
+  panes,
+  isFocused,
+  onFocusPane,
+  onSplitH,
+  onSplitV,
+  onClosePane,
+  broadcastWrite,
+  onPaneConfigChange,
+  themeId,
+}: LeafPaneProps) {
+  const pane = panes.find((p) => p.id === paneId);
+  const { status, exitCode, restartPane } = usePaneStatus(paneId, {
+    cwd: pane?.workingDirectory,
+    env: pane?.envVars,
+    shell: pane?.startupCommand,
+  });
+
+  return (
+    <div
+      className={`pane-leaf ${isFocused ? 'pane-leaf--focused' : ''}`}
+      style={{ flex: 1 }}
+    >
+      {pane?.type === 'terminal' && (
+        <TerminalPane
+          paneId={paneId}
+          cwd={pane.workingDirectory}
+          env={pane.envVars}
+          shell={pane.startupCommand}
+          onFocus={() => onFocusPane(paneId)}
+          broadcastWrite={broadcastWrite}
+          themeId={themeId}
+        />
+      )}
+      {pane?.type === 'code_viewer' && pane.workingDirectory && (
+        <CodeViewer
+          paneId={paneId}
+          filePath={pane.workingDirectory}
+          onFocus={() => onFocusPane(paneId)}
+        />
+      )}
+      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && (
+        <div className="pane-placeholder">
+          {pane.type} — {paneId.slice(0, 8)}
+        </div>
+      )}
+      {!pane && (
+        <div className="pane-placeholder">
+          Pane {paneId.slice(0, 8)}
+        </div>
+      )}
+      <PaneToolbar
+        onSplitH={() => onSplitH(paneId)}
+        onSplitV={() => onSplitV(paneId)}
+        onClose={() => onClosePane(paneId)}
+        autoLaunch={pane?.autoLaunch}
+        startupCommand={pane?.startupCommand}
+        onAutoLaunchChange={
+          onPaneConfigChange
+            ? (v) => onPaneConfigChange(paneId, { autoLaunch: v })
+            : undefined
+        }
+        onStartupCommandChange={
+          onPaneConfigChange
+            ? (v) => onPaneConfigChange(paneId, { startupCommand: v })
+            : undefined
+        }
+        processStatus={pane?.type === 'terminal' ? status : undefined}
+        exitCode={exitCode}
+        onRestart={pane?.type === 'terminal' ? restartPane : undefined}
+      />
     </div>
   );
 }

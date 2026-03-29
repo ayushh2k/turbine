@@ -89,3 +89,34 @@
 .pane-toolbar__config-input:focus {
   border-color: var(--color-accent, #00e5c8);
 }
+
+/* Process status indicator dot */
+.pane-toolbar__status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.pane-toolbar__status-dot--running {
+  background: #4caf50;
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+
+.pane-toolbar__status-dot--exited-ok {
+  background: #ffc107;
+  box-shadow: 0 0 4px rgba(255, 193, 7, 0.6);
+}
+
+.pane-toolbar__status-dot--exited-err {
+  background: #f44336;
+  box-shadow: 0 0 4px rgba(244, 67, 54, 0.6);
+}
+
+.pane-toolbar__btn--restart:hover {
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.15);
+}

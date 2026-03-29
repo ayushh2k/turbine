@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Holds the writer (for pty_write), the master (for pty_resize),
 /// and the child process handle (for pty_kill).
@@ -35,6 +35,18 @@ struct PtyOutputPayload {
 #[derive(Clone, Serialize)]
 struct PtyExitPayload {
     pane_id: String,
+    exit_code: Option<i32>,
+}
+
+/// Try to retrieve the exit code from a child process via the managed PtyManager state.
+fn harvest_exit_code(handle: &AppHandle, pane_id: &str) -> Option<i32> {
+    let pty_mgr = handle.try_state::<PtyManager>()?;
+    let mut entries = pty_mgr.entries.lock().ok()?;
+    let entry = entries.get_mut(pane_id)?;
+    match entry.child.try_wait() {
+        Ok(Some(status)) => Some(if status.success() { 0 } else { 1 }),
+        _ => None,
+    }
 }
 
 /// Spawn a new PTY process for the given pane.
@@ -121,11 +133,13 @@ pub fn pty_spawn(
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {
-                    // EOF — process exited
+                    // EOF — process exited; harvest exit code from child
+                    let exit_code = harvest_exit_code(&handle, &reader_pane_id);
                     let _ = handle.emit(
                         "pty_exit",
                         PtyExitPayload {
                             pane_id: reader_pane_id.clone(),
+                            exit_code,
                         },
                     );
                     break;
@@ -140,11 +154,13 @@ pub fn pty_spawn(
                     );
                 }
                 Err(_) => {
-                    // Read failure — emit exit event
+                    // Read failure — harvest exit code and emit exit event
+                    let exit_code = harvest_exit_code(&handle, &reader_pane_id);
                     let _ = handle.emit(
                         "pty_exit",
                         PtyExitPayload {
                             pane_id: reader_pane_id.clone(),
+                            exit_code,
                         },
                     );
                     break;

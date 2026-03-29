@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import type { PaneProcessStatus } from '../hooks/usePtyStatus';
 import './PaneToolbar.css';
 
 interface PaneToolbarProps {
@@ -9,6 +10,9 @@ interface PaneToolbarProps {
   startupCommand?: string | null;
   onAutoLaunchChange?: (autoLaunch: boolean) => void;
   onStartupCommandChange?: (command: string | null) => void;
+  processStatus?: PaneProcessStatus;
+  exitCode?: number | null;
+  onRestart?: () => void;
 }
 
 export function PaneToolbar({
@@ -19,6 +23,9 @@ export function PaneToolbar({
   startupCommand,
   onAutoLaunchChange,
   onStartupCommandChange,
+  processStatus = 'running',
+  exitCode,
+  onRestart,
 }: PaneToolbarProps) {
   const [visible, setVisible] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -66,6 +73,24 @@ export function PaneToolbar({
               onClick={() => setShowConfig((v) => !v)}
             >
               &#9881;
+            </button>
+          )}
+          <span
+            className={`pane-toolbar__status-dot pane-toolbar__status-dot--${processStatus === 'running' ? 'running' : exitCode === 0 ? 'exited-ok' : 'exited-err'}`}
+            title={
+              processStatus === 'running'
+                ? 'Process running'
+                : `Process exited (code: ${exitCode ?? 'unknown'})`
+            }
+          />
+          {processStatus !== 'running' && onRestart && (
+            <button
+              className="pane-toolbar__btn pane-toolbar__btn--restart"
+              title={`Restart process (exited with code ${exitCode ?? 'unknown'})`}
+              aria-label="Restart process"
+              onClick={onRestart}
+            >
+              &#8635;
             </button>
           )}
           <button

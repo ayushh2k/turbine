@@ -11,7 +11,8 @@ export type Action =
   | 'splitVertical'
   | 'navUp' | 'navDown' | 'navLeft' | 'navRight'
   | 'search'
-  | 'toggleBroadcast';
+  | 'toggleBroadcast'
+  | 'openSettings';
 
 /** Modifier-aware key string, e.g. "Ctrl+Shift+D" */
 type KeyCombo = string;
@@ -33,6 +34,7 @@ const DEFAULT_BINDINGS: Record<Action, KeyCombo> = {
   navRight: 'Ctrl+ArrowRight',
   search: 'Ctrl+F',
   toggleBroadcast: 'Ctrl+Shift+B',
+  openSettings: 'Ctrl+,',
 };
 
 type ActionHandler = () => void;

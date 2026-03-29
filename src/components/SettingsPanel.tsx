@@ -1,0 +1,336 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSettingsStore } from '../state/settingsStore';
+import { keybindingManager, DEFAULT_BINDINGS } from '../state/keybindingManager';
+import { getAllThemes, applyTheme } from '../themes/themeEngine';
+import type { Action } from '../state/keybindingManager';
+import './SettingsPanel.css';
+
+type Section = 'general' | 'terminal' | 'keybindings' | 'updates';
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'terminal', label: 'Terminal' },
+  { id: 'keybindings', label: 'Keybindings' },
+  { id: 'updates', label: 'Updates' },
+];
+
+const ACTION_LABELS: Record<Action, string> = {
+  newWorkspace: 'New Workspace',
+  closePane: 'Close Pane',
+  commandPalette: 'Command Palette',
+  nextWorkspace: 'Next Workspace',
+  prevWorkspace: 'Previous Workspace',
+  splitHorizontal: 'Split Horizontal',
+  splitVertical: 'Split Vertical',
+  navUp: 'Navigate Up',
+  navDown: 'Navigate Down',
+  navLeft: 'Navigate Left',
+  navRight: 'Navigate Right',
+  search: 'Search',
+  toggleBroadcast: 'Toggle Broadcast',
+  workspace1: 'Workspace 1',
+  workspace2: 'Workspace 2',
+  workspace3: 'Workspace 3',
+  workspace4: 'Workspace 4',
+  workspace5: 'Workspace 5',
+  workspace6: 'Workspace 6',
+  workspace7: 'Workspace 7',
+  workspace8: 'Workspace 8',
+  workspace9: 'Workspace 9',
+  openSettings: 'Open Settings',
+};
+
+interface SettingsPanelProps {
+  onClose: () => void;
+}
+
+export function SettingsPanel({ onClose }: SettingsPanelProps) {
+  const [activeSection, setActiveSection] = useState<Section>('general');
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKey, true);
+    return () => document.removeEventListener('keydown', handleKey, true);
+  }, [onClose]);
+
+  return (
+    <div className="settings-panel__backdrop" onClick={onClose}>
+      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-panel__sidebar">
+          {SECTIONS.map((section) => (
+            <button
+              key={section.id}
+              className={`settings-panel__tab ${activeSection === section.id ? 'settings-panel__tab--active' : ''}`}
+              onClick={() => setActiveSection(section.id)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+        <div className="settings-panel__content">
+          {activeSection === 'general' && <GeneralSection />}
+          {activeSection === 'terminal' && <TerminalSection />}
+          {activeSection === 'keybindings' && <KeybindingsSection />}
+          {activeSection === 'updates' && <UpdatesSection />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- General Section ---------- */
+
+function GeneralSection() {
+  const { settings, saveSettings } = useSettingsStore();
+  const themes = getAllThemes();
+
+  const [defaultShell, setDefaultShell] = useState(settings.defaultShell ?? '');
+  const [agentLaunchDelay, setAgentLaunchDelay] = useState(
+    String(settings.agentLaunchDelay),
+  );
+
+  const handleThemeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const themeId = e.target.value;
+      saveSettings({ theme: themeId });
+      applyTheme(themeId);
+    },
+    [saveSettings],
+  );
+
+  const handleShellBlur = useCallback(() => {
+    const value = defaultShell.trim() || null;
+    if (value !== settings.defaultShell) {
+      saveSettings({ defaultShell: value });
+    }
+  }, [defaultShell, settings.defaultShell, saveSettings]);
+
+  const handleDelayBlur = useCallback(() => {
+    const parsed = parseInt(agentLaunchDelay, 10);
+    const value = Number.isNaN(parsed) || parsed < 0 ? settings.agentLaunchDelay : parsed;
+    setAgentLaunchDelay(String(value));
+    if (value !== settings.agentLaunchDelay) {
+      saveSettings({ agentLaunchDelay: value });
+    }
+  }, [agentLaunchDelay, settings.agentLaunchDelay, saveSettings]);
+
+  return (
+    <>
+      <h3 className="settings-panel__section-title">General</h3>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">Theme</label>
+        <select
+          className="settings-panel__select"
+          value={settings.theme}
+          onChange={handleThemeChange}
+        >
+          {themes.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">Default Shell</label>
+        <input
+          className="settings-panel__input"
+          type="text"
+          placeholder="System default"
+          value={defaultShell}
+          onChange={(e) => setDefaultShell(e.target.value)}
+          onBlur={handleShellBlur}
+        />
+      </div>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">Agent Launch Delay (ms)</label>
+        <input
+          className="settings-panel__input settings-panel__input--number"
+          type="number"
+          min={0}
+          value={agentLaunchDelay}
+          onChange={(e) => setAgentLaunchDelay(e.target.value)}
+          onBlur={handleDelayBlur}
+        />
+      </div>
+    </>
+  );
+}
+
+/* ---------- Terminal Section ---------- */
+
+function TerminalSection() {
+  const { settings, saveSettings } = useSettingsStore();
+  const [scrollback, setScrollback] = useState(
+    String(settings.terminalScrollbackLines),
+  );
+
+  const handleBlur = useCallback(() => {
+    const parsed = parseInt(scrollback, 10);
+    const value =
+      Number.isNaN(parsed) || parsed < 1
+        ? settings.terminalScrollbackLines
+        : parsed;
+    setScrollback(String(value));
+    if (value !== settings.terminalScrollbackLines) {
+      saveSettings({ terminalScrollbackLines: value });
+    }
+  }, [scrollback, settings.terminalScrollbackLines, saveSettings]);
+
+  return (
+    <>
+      <h3 className="settings-panel__section-title">Terminal</h3>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">Scrollback Lines</label>
+        <input
+          className="settings-panel__input settings-panel__input--number"
+          type="number"
+          min={1}
+          value={scrollback}
+          onChange={(e) => setScrollback(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </div>
+    </>
+  );
+}
+
+/* ---------- Keybindings Section ---------- */
+
+function KeybindingsSection() {
+  const { saveSettings } = useSettingsStore();
+  const [bindings, setBindings] = useState(() => keybindingManager.getBindings());
+  const [recordingAction, setRecordingAction] = useState<Action | null>(null);
+  const recordingRef = useRef<Action | null>(null);
+
+  // Keep ref in sync for the keydown handler closure
+  recordingRef.current = recordingAction;
+
+  useEffect(() => {
+    if (!recordingAction) return;
+
+    const handler = (e: KeyboardEvent) => {
+      // Ignore bare modifier presses
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const parts: string[] = [];
+      if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.altKey) parts.push('Alt');
+
+      let key = e.key;
+      if (key === ' ') key = 'Space';
+      if (key.length === 1) key = key.toUpperCase();
+
+      parts.push(key);
+      const combo = parts.join('+');
+
+      const action = recordingRef.current;
+      if (action) {
+        keybindingManager.rebind(action, combo).then(() => {
+          setBindings(keybindingManager.getBindings());
+        });
+      }
+      setRecordingAction(null);
+    };
+
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [recordingAction]);
+
+  const handleReset = useCallback(() => {
+    saveSettings({ customKeybindings: {} }).then(() => {
+      setBindings(keybindingManager.getBindings());
+    });
+  }, [saveSettings]);
+
+  const actions = Object.keys(DEFAULT_BINDINGS) as Action[];
+
+  return (
+    <>
+      <h3 className="settings-panel__section-title">Keybindings</h3>
+
+      <table className="settings-panel__keybinding-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Shortcut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {actions.map((action) => (
+            <tr key={action}>
+              <td>{ACTION_LABELS[action]}</td>
+              <td>
+                {recordingAction === action ? (
+                  <span className="settings-panel__keybinding-recording">
+                    Press keys...
+                  </span>
+                ) : (
+                  <span
+                    className="settings-panel__keybinding-shortcut"
+                    onClick={() => setRecordingAction(action)}
+                  >
+                    {bindings[action]}
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <button className="settings-panel__reset-btn" onClick={handleReset}>
+        Reset to defaults
+      </button>
+    </>
+  );
+}
+
+/* ---------- Updates Section ---------- */
+
+function UpdatesSection() {
+  const { settings, saveSettings } = useSettingsStore();
+
+  const handleToggle = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      saveSettings({ autoUpdateEnabled: e.target.checked });
+    },
+    [saveSettings],
+  );
+
+  return (
+    <>
+      <h3 className="settings-panel__section-title">Updates</h3>
+
+      <div className="settings-panel__checkbox-field">
+        <input
+          id="auto-update-toggle"
+          className="settings-panel__checkbox"
+          type="checkbox"
+          checked={settings.autoUpdateEnabled}
+          onChange={handleToggle}
+        />
+        <label
+          className="settings-panel__checkbox-label"
+          htmlFor="auto-update-toggle"
+        >
+          Enable automatic updates
+        </label>
+      </div>
+    </>
+  );
+}
