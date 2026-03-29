@@ -52,6 +52,8 @@ export function TerminalPane({
   const [showCommandBlocks, setShowCommandBlocks] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const showScrollDownRef = useRef(false);
+  const scrollRafRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const broadcastWriteRef = useRef<typeof broadcastWrite>(broadcastWrite);
   const {
@@ -297,25 +299,37 @@ export function TerminalPane({
       return true;
     });
 
-    // Scroll-to-bottom tracking: show button when user scrolls away from bottom
-    const scrollDisposable = terminal.onScroll(() => {
+    // Scroll-to-bottom tracking: use rAF to batch updates and avoid re-render storms
+    const updateScrollState = () => {
       const buffer = terminal.buffer.active;
       const isAtBottom = buffer.viewportY >= buffer.baseY;
-      setShowScrollDown(!isAtBottom);
-    });
+      const shouldShow = !isAtBottom;
+      if (showScrollDownRef.current !== shouldShow) {
+        showScrollDownRef.current = shouldShow;
+        setShowScrollDown(shouldShow);
+      }
+    };
 
-    // Also track when new output arrives while scrolled up
-    const writeDisposable = terminal.onWriteParsed(() => {
-      const buffer = terminal.buffer.active;
-      const isAtBottom = buffer.viewportY >= buffer.baseY;
-      setShowScrollDown(!isAtBottom);
-    });
+    const scheduleScrollCheck = () => {
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        updateScrollState();
+      });
+    };
+
+    const scrollDisposable = terminal.onScroll(scheduleScrollCheck);
+    const writeDisposable = terminal.onWriteParsed(scheduleScrollCheck);
 
     return () => {
       disposed = true;
       dataDisposable.dispose();
       scrollDisposable.dispose();
       writeDisposable.dispose();
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
       resizeObserver.disconnect();
       unlisten?.();
       removePaneSize(paneId);

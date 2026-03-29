@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { CommandBlock } from '../types';
 
 /**
@@ -125,20 +125,18 @@ export function buildCommandBlocks(
  */
 export function useCommandBlocks() {
   const [blocks, setBlocks] = useState<CommandBlock[]>([]);
-  const [_buffer, setBuffer] = useState('');
+  const bufferRef = useRef('');
 
   const appendOutput = useCallback((data: string) => {
-    setBuffer((prev) => {
-      const updated = prev + data;
-      const markers = parseOsc133Markers(updated);
-      if (markers.length > 0) {
-        const newBlocks = buildCommandBlocks(updated, markers);
-        if (newBlocks.length > 0) {
-          setBlocks(newBlocks);
-        }
+    const updated = bufferRef.current + data;
+    bufferRef.current = updated;
+    const markers = parseOsc133Markers(updated);
+    if (markers.length > 0) {
+      const newBlocks = buildCommandBlocks(updated, markers);
+      if (newBlocks.length > 0) {
+        setBlocks(newBlocks);
       }
-      return updated;
-    });
+    }
   }, []);
 
   const toggleCollapse = useCallback((blockId: string) => {
@@ -151,7 +149,7 @@ export function useCommandBlocks() {
 
   const clearBlocks = useCallback(() => {
     setBlocks([]);
-    setBuffer('');
+    bufferRef.current = '';
   }, []);
 
   return { blocks, appendOutput, toggleCollapse, clearBlocks };
