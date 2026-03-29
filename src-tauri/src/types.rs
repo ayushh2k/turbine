@@ -47,3 +47,10 @@ pub struct FileContent {
     pub offset: u64,
     pub is_complete: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct FileTreeEntry {
+    pub path: String,
+    pub relative_path: String,
+    pub is_dir: bool,
+}

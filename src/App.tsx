@@ -1,21 +1,24 @@
 import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
-import { keybindingManager } from './state/keybindingManager';
-import { launchAgents } from './state/agentLauncher';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { navigatePane, findLeafIds, movePane } from './state/layoutEngine';
+import { findLeafIds, movePane } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
+import { useAppStartup } from './hooks/useAppStartup';
+import { useWorkspaceKeybindings } from './hooks/useWorkspaceKeybindings';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
+import { FileBrowser } from './components/FileBrowser';
 import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SettingsPanel } from './components/SettingsPanel';
 import { UpdateNotification } from './components/UpdateNotification';
-import type { PaneTemplate } from './types';
+import type { FileTreeEntry, PaneTemplate } from './types';
+import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import {
   applyTemplate,
   splitHorizontal,
@@ -26,10 +29,11 @@ import {
 import './App.css';
 
 function App() {
-  const [loading, setLoading] = useState(true);
   const [showPalette, setShowPalette] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
+  const [projectFiles, setProjectFiles] = useState<FileTreeEntry[]>([]);
+  const [fileIndexVersion, setFileIndexVersion] = useState(0);
   const { handleContextMenu, menuElement: contextMenuElement } = useWorkspaceContextMenu();
 
   const {
@@ -37,55 +41,28 @@ function App() {
     activeWorkspaceId,
     switchWorkspace,
     createWorkspace,
-    restoreAll,
     persistAll,
   } = useWorkspaceStore();
 
-  const { settings, loadSettings } = useSettingsStore();
+  const { settings } = useSettingsStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const { broadcastWrite, broadcastMode, toggleBroadcast } = useBroadcast(focusedPaneId);
+  const workspaceRoot = useMemo(
+    () => deriveWorkspaceRoot(activeWorkspace, focusedPaneId),
+    [activeWorkspace, focusedPaneId],
+  );
+  const activeFilePath =
+    activeWorkspace?.panes.find((pane) => pane.id === focusedPaneId && pane.type === 'code_viewer')?.workingDirectory ??
+    activeWorkspace?.panes.find((pane) => pane.type === 'code_viewer')?.workingDirectory ??
+    null;
 
   // Listen for PTY exit events and track per-pane process status
   usePtyStatusListener();
+  const loading = useAppStartup(createWorkspace);
 
   // Only pass broadcastWrite when broadcast mode is active
   const activeBroadcastWrite = broadcastMode ? broadcastWrite : undefined;
-
-  // Startup: restore workspaces, settings, apply theme
-  useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      await loadSettings();
-      await restoreAll();
-
-      if (cancelled) return;
-
-      const { workspaces: ws, activeWorkspaceId: awId } = useWorkspaceStore.getState();
-      if (ws.length === 0) {
-        createWorkspace('Workspace 1');
-      }
-
-      // Apply theme
-      const theme = useSettingsStore.getState().settings.theme;
-      applyTheme(theme);
-
-      // Auto-launch agents for the active workspace
-      const active = useWorkspaceStore.getState().workspaces.find(
-        (w) => w.id === (awId ?? useWorkspaceStore.getState().activeWorkspaceId),
-      );
-      if (active) {
-        const errors = await launchAgents(active.panes);
-        if (errors.size > 0) {
-          console.warn('Agent launch errors:', Object.fromEntries(errors));
-        }
-      }
-
-      setLoading(false);
-    }
-    init();
-    return () => { cancelled = true; };
-  }, []);
 
   // Apply theme when it changes
   useEffect(() => {
@@ -106,6 +83,41 @@ function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [workspaces, activeWorkspaceId, persistAll]);
+
+  useEffect(() => {
+    if (!workspaceRoot) {
+      setProjectFiles([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    invoke<Array<{
+      path: string;
+      relative_path: string;
+      is_dir: boolean;
+    }>>('list_workspace_files', { root: workspaceRoot })
+      .then((entries) => {
+        if (!cancelled) {
+          setProjectFiles(
+            entries.map((entry) => ({
+              path: entry.path,
+              relativePath: entry.relative_path,
+              isDir: entry.is_dir,
+            })),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectFiles([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceRoot, fileIndexVersion]);
 
   // Layout operations — helper to create PaneConfigs for new leaves after a split
   const splitAndAddPanes = useCallback(
@@ -219,77 +231,69 @@ function App() {
     [activeWorkspace, activeWorkspaceId],
   );
 
-  // Register keybindings
-  useEffect(() => {
-    const km = keybindingManager;
+  const handleRefreshProjectFiles = useCallback(() => {
+    setFileIndexVersion((version) => version + 1);
+  }, []);
 
-    km.register('newWorkspace', () => createWorkspace());
-    km.register('closePane', () => {
-      if (focusedPaneId) handleClosePane(focusedPaneId);
-    });
-    km.register('commandPalette', () => setShowPalette((v) => !v));
-    km.register('splitHorizontal', () => {
-      if (focusedPaneId) handleSplitH(focusedPaneId);
-    });
-    km.register('splitVertical', () => {
-      if (focusedPaneId) handleSplitV(focusedPaneId);
-    });
-    km.register('toggleBroadcast', toggleBroadcast);
-    km.register('openSettings', () => setShowSettings((v) => !v));
+  const handleOpenFile = useCallback(
+    (filePath: string) => {
+      if (!activeWorkspace || !activeWorkspaceId) {
+        return;
+      }
 
-    // Workspace navigation
-    km.register('nextWorkspace', () => {
-      const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
-      const idx = sorted.findIndex((w) => w.id === activeWorkspaceId);
-      if (sorted.length > 0) {
-        switchWorkspace(sorted[(idx + 1) % sorted.length].id);
-      }
-    });
-    km.register('prevWorkspace', () => {
-      const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
-      const idx = sorted.findIndex((w) => w.id === activeWorkspaceId);
-      if (sorted.length > 0) {
-        switchWorkspace(sorted[(idx - 1 + sorted.length) % sorted.length].id);
-      }
-    });
+      const existingCodePane =
+        activeWorkspace.panes.find((pane) => pane.id === focusedPaneId && pane.type === 'code_viewer') ??
+        activeWorkspace.panes.find((pane) => pane.type === 'code_viewer');
 
-    // Direct workspace access (Ctrl+1-9)
-    const wsNums = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-    for (const n of wsNums) {
-      km.register(`workspace${n}`, () => {
-        const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
-        if (sorted[n - 1]) switchWorkspace(sorted[n - 1].id);
-      });
-    }
+      if (existingCodePane) {
+        useWorkspaceStore.setState((state) => ({
+          workspaces: state.workspaces.map((workspace) =>
+            workspace.id === activeWorkspaceId
+              ? {
+                  ...workspace,
+                  panes: workspace.panes.map((pane) =>
+                    pane.id === existingCodePane.id
+                      ? { ...pane, type: 'code_viewer', workingDirectory: filePath }
+                      : pane,
+                  ),
+                }
+              : workspace,
+          ),
+        }));
+        setFocusedPaneId(existingCodePane.id);
+        return;
+      }
 
-    // Directional pane navigation
-    km.register('navUp', () => {
-      if (focusedPaneId && activeWorkspace) {
-        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'up'));
+      const sourcePaneId = focusedPaneId ?? activeWorkspace.panes[0]?.id;
+      if (!sourcePaneId) {
+        return;
       }
-    });
-    km.register('navDown', () => {
-      if (focusedPaneId && activeWorkspace) {
-        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'down'));
-      }
-    });
-    km.register('navLeft', () => {
-      if (focusedPaneId && activeWorkspace) {
-        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'left'));
-      }
-    });
-    km.register('navRight', () => {
-      if (focusedPaneId && activeWorkspace) {
-        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'right'));
-      }
-    });
 
-    km.activate();
+      const newLayout = splitHorizontal(activeWorkspace.layout, sourcePaneId);
+      const existingIds = new Set(activeWorkspace.panes.map((pane) => pane.id));
+      const newPaneId = findLeafIds(newLayout).find((paneId) => !existingIds.has(paneId));
+      if (!newPaneId) {
+        return;
+      }
 
-    return () => {
-      km.deactivate();
-    };
-  }, [
+      const pane = createDefaultPane(activeWorkspaceId);
+      pane.id = newPaneId;
+      pane.type = 'code_viewer';
+      pane.workingDirectory = filePath;
+
+      useWorkspaceStore.setState((state) => ({
+        workspaces: state.workspaces.map((workspace) =>
+          workspace.id === activeWorkspaceId
+            ? { ...workspace, layout: newLayout, panes: [...workspace.panes, pane] }
+            : workspace,
+        ),
+      }));
+      setFocusedPaneId(newPaneId);
+    },
+    [activeWorkspace, activeWorkspaceId, focusedPaneId],
+  );
+
+  useWorkspaceKeybindings({
     workspaces,
     activeWorkspaceId,
     activeWorkspace,
@@ -300,7 +304,10 @@ function App() {
     handleSplitH,
     handleSplitV,
     toggleBroadcast,
-  ]);
+    setShowPalette,
+    setShowSettings,
+    setFocusedPaneId,
+  });
 
   // Command palette actions
   const paletteActions: PaletteAction[] = useMemo(() => {
@@ -308,6 +315,7 @@ function App() {
       { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', handler: () => createWorkspace() },
       { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', handler: toggleBroadcast },
       { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', handler: () => setShowSettings(true) },
+      { id: 'refresh-project-files', label: 'Refresh Project Files', category: 'File', handler: handleRefreshProjectFiles },
     ];
 
     // Workspace switching
@@ -330,6 +338,15 @@ function App() {
         { id: 'split-v', label: 'Split Vertical', category: 'Pane', shortcut: 'Ctrl+Shift+D', handler: () => handleSplitV(focusedPaneId) },
         { id: 'close-pane', label: 'Close Pane', category: 'Pane', shortcut: 'Ctrl+W', handler: () => handleClosePane(focusedPaneId) },
       );
+    }
+
+    for (const entry of projectFiles.filter((entry) => !entry.isDir).slice(0, 2000)) {
+      actions.push({
+        id: `file-${entry.relativePath}`,
+        label: entry.relativePath,
+        category: 'File',
+        handler: () => handleOpenFile(entry.path),
+      });
     }
 
     // Open file in code viewer
@@ -372,7 +389,7 @@ function App() {
     }
 
     return actions;
-  }, [workspaces, focusedPaneId, createWorkspace, switchWorkspace, handleSplitH, handleSplitV, handleClosePane, toggleBroadcast]);
+  }, [workspaces, focusedPaneId, activeWorkspace, activeWorkspaceId, createWorkspace, switchWorkspace, handleSplitH, handleSplitV, handleClosePane, toggleBroadcast, projectFiles, handleOpenFile, handleRefreshProjectFiles]);
 
   if (loading) {
     return (
@@ -390,6 +407,14 @@ function App() {
           <TemplatePicker onSelect={handleApplyTemplate} />
         </div>
         <div className="app__content">
+          <FileBrowser
+            rootPath={workspaceRoot}
+            entries={projectFiles}
+            activeFilePath={activeFilePath}
+            onOpenFile={handleOpenFile}
+            onRefresh={handleRefreshProjectFiles}
+          />
+          <div className="app__workspace">
           {activeWorkspace && (
             <PaneContainer
               layout={activeWorkspace.layout}
@@ -406,6 +431,7 @@ function App() {
               themeId={settings.theme}
             />
           )}
+          </div>
         </div>
 
         {showPalette && (

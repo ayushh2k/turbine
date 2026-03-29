@@ -109,7 +109,7 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
           ref={inputRef}
           className="command-palette__input"
           type="text"
-          placeholder="Type a command..."
+          placeholder="Type a command or file..."
           aria-autocomplete="list"
           aria-controls="command-palette-listbox"
           aria-activedescendant={filtered[selectedIndex] ? `command-palette-option-${filtered[selectedIndex].id}` : undefined}

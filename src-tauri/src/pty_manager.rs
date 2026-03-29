@@ -60,15 +60,19 @@ pub fn pty_spawn(
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
     shell: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
     pty_state: State<'_, PtyManager>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
     let pty_system = native_pty_system();
+    let cols = cols.unwrap_or(80).max(2);
+    let rows = rows.unwrap_or(24).max(2);
 
     let pair = pty_system
         .openpty(PtySize {
-            rows: 24,
-            cols: 80,
+            rows,
+            cols,
             pixel_width: 0,
             pixel_height: 0,
         })

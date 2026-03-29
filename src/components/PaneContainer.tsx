@@ -188,7 +188,7 @@ function LeafPane({
   const { status, exitCode, restartPane } = usePaneStatus(paneId, {
     cwd: pane?.workingDirectory,
     env: pane?.envVars,
-    shell: pane?.startupCommand,
+    startupCommand: pane?.startupCommand,
   });
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -258,7 +258,6 @@ function LeafPane({
           paneId={paneId}
           cwd={pane.workingDirectory}
           env={pane.envVars}
-          shell={pane.startupCommand}
           onFocus={() => onFocusPane(paneId)}
           broadcastWrite={broadcastWrite}
           themeId={themeId}

@@ -9,9 +9,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useSettingsStore } from '../state/settingsStore';
 import { getXtermTheme } from '../themes/themeEngine';
+import { useCommandBlocks } from '../hooks/useCommandBlocks';
 import { TerminalSearch } from './TerminalSearch';
+import { CommandBlocksPanel } from './CommandBlocksPanel';
 import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
 import { usePtyStatusStore } from '../hooks/usePtyStatus';
+import { spawnPaneSession } from '../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
@@ -39,26 +42,73 @@ export function TerminalPane({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [showCommandBlocks, setShowCommandBlocks] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const broadcastWriteRef = useRef<typeof broadcastWrite>(broadcastWrite);
+  const {
+    blocks: commandBlocks,
+    appendOutput,
+    toggleCollapse,
+    clearBlocks,
+  } = useCommandBlocks();
 
   const scrollbackLines = useSettingsStore((s) => s.settings.terminalScrollbackLines);
+  const defaultShell = useSettingsStore((s) => s.settings.defaultShell);
+  const setStatus = usePtyStatusStore((s) => s.setStatus);
+  const setPaneSize = usePtyStatusStore((s) => s.setPaneSize);
+  const removePaneSize = usePtyStatusStore((s) => s.removePaneSize);
+  const effectiveShell = shell ?? defaultShell;
 
   // PTY process status for session-ended overlay
   const ptyEntry = usePtyStatusStore((s) => s.statuses.get(paneId));
   const processExited = ptyEntry != null && ptyEntry.status !== 'running';
   const exitCode = ptyEntry?.exitCode;
 
-  // Initialize terminal
+  useEffect(() => {
+    if (commandBlocks.length > 0) {
+      setShowCommandBlocks(true);
+    }
+  }, [commandBlocks.length]);
+
+  useEffect(() => {
+    broadcastWriteRef.current = broadcastWrite;
+  }, [broadcastWrite]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    terminal.options.theme = themeId
+      ? getXtermTheme(themeId)
+      : {
+          background: '#0b1929',
+          foreground: '#c8dce8',
+          cursor: '#00e5c8',
+          selectionBackground: '#1a355080',
+        };
+  }, [themeId]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    terminal.options.scrollback = scrollbackLines;
+  }, [scrollbackLines]);
+
+  // Initialize terminal and spawn the PTY once per session-defining input.
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const xtermTheme = themeId ? getXtermTheme(themeId) : undefined;
     const terminal = new Terminal({
       scrollback: scrollbackLines,
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-      theme: xtermTheme ?? {
+      theme: (themeId ? getXtermTheme(themeId) : undefined) ?? {
         background: '#0b1929',
         foreground: '#c8dce8',
         cursor: '#00e5c8',
@@ -115,25 +165,27 @@ export function TerminalPane({
     }
 
     fitAddon.fit();
+    setPaneSize(paneId, terminal.cols, terminal.rows);
+    setStatus(paneId, 'running', null);
+    clearBlocks();
+    setShowCommandBlocks(false);
 
-    // Spawn PTY
-    const cols = terminal.cols;
-    const rows = terminal.rows;
-
-    invoke('pty_spawn', {
+    spawnPaneSession({
       paneId,
       cwd,
       env,
-      shell,
-      cols,
-      rows,
+      shell: effectiveShell,
+      cols: terminal.cols,
+      rows: terminal.rows,
     }).catch((err) => {
+      setStatus(paneId, 'errored', null);
       terminal.writeln(`\r\n\x1b[31mFailed to spawn shell: ${err}\x1b[0m`);
     });
 
     // Listen for PTY output
     let lineBuffer = '';
     let unlisten: UnlistenFn | null = null;
+    let disposed = false;
     listen<{ pane_id: string; data: number[] }>('pty_output', (event) => {
       if (event.payload.pane_id === paneId) {
         const bytes = new Uint8Array(event.payload.data);
@@ -141,6 +193,7 @@ export function TerminalPane({
 
         // Scan output for media URLs (line-buffered)
         const text = new TextDecoder().decode(bytes);
+        appendOutput(text);
         lineBuffer += text;
         const lines = lineBuffer.split('\n');
         lineBuffer = lines.pop() ?? '';
@@ -152,6 +205,10 @@ export function TerminalPane({
         }
       }
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unlisten = fn;
     });
 
@@ -159,8 +216,8 @@ export function TerminalPane({
     const dataDisposable = terminal.onData((data) => {
       const encoder = new TextEncoder();
       const encoded = encoder.encode(data);
-      if (broadcastWrite) {
-        broadcastWrite(encoded);
+      if (broadcastWriteRef.current) {
+        broadcastWriteRef.current(encoded);
       } else {
         invoke('pty_write', {
           paneId,
@@ -175,6 +232,7 @@ export function TerminalPane({
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit();
+        setPaneSize(paneId, terminal.cols, terminal.rows);
         invoke('pty_resize', {
           paneId,
           cols: terminal.cols,
@@ -187,7 +245,7 @@ export function TerminalPane({
     resizeObserver.observe(containerRef.current);
 
     // Copy/paste keybindings
-    const keyDisposable = terminal.attachCustomKeyEventHandler((e) => {
+    terminal.attachCustomKeyEventHandler((e) => {
       // Ctrl+Shift+C — copy
       if (e.ctrlKey && e.shiftKey && e.key === 'C' && e.type === 'keydown') {
         const selection = terminal.getSelection();
@@ -216,17 +274,19 @@ export function TerminalPane({
     });
 
     return () => {
-      keyDisposable;
+      disposed = true;
       dataDisposable.dispose();
       resizeObserver.disconnect();
       unlisten?.();
+      removePaneSize(paneId);
+      clearBlocks();
       invoke('pty_kill', { paneId }).catch(() => {});
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [paneId, cwd, env, shell, scrollbackLines, broadcastWrite, themeId]);
+  }, [paneId, cwd, env, effectiveShell, removePaneSize, setPaneSize, setStatus, appendOutput, clearBlocks]);
 
   const handleFocus = useCallback(() => {
     onFocus?.();
@@ -240,6 +300,22 @@ export function TerminalPane({
   return (
     <div className="terminal-pane" onClick={handleFocus}>
       <div className="terminal-pane__container" ref={containerRef} />
+      {commandBlocks.length > 0 && !showCommandBlocks && (
+        <button
+          type="button"
+          className="terminal-pane__blocks-toggle"
+          onClick={() => setShowCommandBlocks(true)}
+        >
+          Blocks {commandBlocks.length}
+        </button>
+      )}
+      {showCommandBlocks && commandBlocks.length > 0 && (
+        <CommandBlocksPanel
+          blocks={commandBlocks}
+          onToggleCollapse={toggleCollapse}
+          onClose={() => setShowCommandBlocks(false)}
+        />
+      )}
       {showSearch && searchAddonRef.current && (
         <TerminalSearch
           searchAddon={searchAddonRef.current}

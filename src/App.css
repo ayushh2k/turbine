@@ -64,6 +64,13 @@ html, body, #root {
   display: flex;
 }
 
+.app__workspace {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
 .app__loading {
   display: flex;
   align-items: center;

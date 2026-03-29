@@ -1,9 +1,9 @@
-use crate::types::FileContent;
+use crate::types::{FileContent, FileTreeEntry};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 
@@ -91,6 +91,99 @@ pub fn read_file(
 #[tauri::command]
 pub fn write_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, &content).map_err(|e| format!("Failed to write file: {e}"))
+}
+
+#[tauri::command]
+pub fn list_workspace_files(root: String) -> Result<Vec<FileTreeEntry>, String> {
+    let requested = PathBuf::from(&root);
+    let resolved_root = if requested.is_file() {
+        requested
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or(requested)
+    } else {
+        requested
+    };
+
+    let canonical_root = resolved_root
+        .canonicalize()
+        .unwrap_or_else(|_| resolved_root.clone());
+
+    if !canonical_root.exists() {
+        return Err(format!("Path does not exist: {}", canonical_root.display()));
+    }
+
+    if !canonical_root.is_dir() {
+        return Err(format!("Path is not a directory: {}", canonical_root.display()));
+    }
+
+    let mut entries = Vec::new();
+    collect_file_entries(&canonical_root, &canonical_root, &mut entries)?;
+    entries.sort_by(|a, b| {
+        a.relative_path
+            .to_lowercase()
+            .cmp(&b.relative_path.to_lowercase())
+            .then_with(|| a.is_dir.cmp(&b.is_dir).reverse())
+    });
+
+    Ok(entries)
+}
+
+fn collect_file_entries(
+    root: &Path,
+    current: &Path,
+    entries: &mut Vec<FileTreeEntry>,
+) -> Result<(), String> {
+    let mut children: Vec<_> = fs::read_dir(current)
+        .map_err(|e| format!("Failed to read directory '{}': {e}", current.display()))?
+        .filter_map(|entry| entry.ok())
+        .collect();
+
+    children.sort_by(|a, b| {
+        a.file_name()
+            .to_string_lossy()
+            .to_lowercase()
+            .cmp(&b.file_name().to_string_lossy().to_lowercase())
+    });
+
+    for child in children {
+        let path = child.path();
+        let file_name = child.file_name();
+        let file_name = file_name.to_string_lossy();
+
+        if should_skip_path(&file_name) {
+            continue;
+        }
+
+        let metadata = child
+            .metadata()
+            .map_err(|e| format!("Failed to read metadata '{}': {e}", path.display()))?;
+
+        let relative_path = path
+            .strip_prefix(root)
+            .map_err(|e| format!("Failed to compute relative path '{}': {e}", path.display()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        entries.push(FileTreeEntry {
+            path: path.to_string_lossy().to_string(),
+            relative_path: relative_path.clone(),
+            is_dir: metadata.is_dir(),
+        });
+
+        if metadata.is_dir() {
+            collect_file_entries(root, &path, entries)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn should_skip_path(name: &str) -> bool {
+    matches!(
+        name,
+        ".git" | "node_modules" | "target" | ".next" | "dist" | "build" | ".turbo"
+    )
 }
 
 // ---------------------------------------------------------------------------

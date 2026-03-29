@@ -60,6 +60,12 @@ export interface FileContent {
   isComplete: boolean;
 }
 
+export interface FileTreeEntry {
+  path: string;
+  relativePath: string;
+  isDir: boolean;
+}
+
 // Theme definition
 export interface ThemeDef {
   id: string;

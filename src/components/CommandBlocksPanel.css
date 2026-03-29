@@ -1,0 +1,119 @@
+.command-blocks-panel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: min(360px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 229, 200, 0.2);
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%),
+    rgba(8, 20, 34, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+}
+
+.command-blocks-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.command-blocks-panel__eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-accent, #00e5c8);
+  opacity: 0.8;
+}
+
+.command-blocks-panel__title {
+  margin-top: 2px;
+  color: var(--color-fg, #c8dce8);
+  font-size: 12px;
+}
+
+.command-blocks-panel__close {
+  border: none;
+  background: transparent;
+  color: var(--color-fg, #c8dce8);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.command-blocks-panel__list {
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.command-blocks-panel__item {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-fg, #c8dce8);
+  cursor: pointer;
+  text-align: left;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.command-blocks-panel__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.command-blocks-panel__item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-blocks-panel__status {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.command-blocks-panel__status--ok {
+  background: #00d78a;
+}
+
+.command-blocks-panel__status--err {
+  background: #ff6b6b;
+}
+
+.command-blocks-panel__command {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.command-blocks-panel__toggle {
+  opacity: 0.55;
+  font-size: 12px;
+}
+
+.command-blocks-panel__meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  opacity: 0.65;
+}
