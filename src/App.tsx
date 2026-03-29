@@ -345,10 +345,10 @@ function App() {
   // Command palette actions
   const paletteActions: PaletteAction[] = useMemo(() => {
     const actions: PaletteAction[] = [
-      { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', handler: () => createWorkspace() },
-      { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', handler: toggleBroadcast },
-      { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', handler: () => setShowSettings(true) },
-      { id: 'refresh-project-files', label: 'Refresh Project Files', category: 'File', handler: handleRefreshProjectFiles },
+      { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', type: 'command', handler: () => createWorkspace() },
+      { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', type: 'command', handler: toggleBroadcast },
+      { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', type: 'command', handler: () => setShowSettings(true) },
+      { id: 'refresh-project-files', label: 'Refresh Project Files', category: 'File', type: 'command', handler: handleRefreshProjectFiles },
     ];
 
     // Workspace switching
@@ -360,6 +360,7 @@ function App() {
         label: `Switch to ${ws.name}`,
         category: 'Workspace',
         shortcut: i < 9 ? `Ctrl+${i + 1}` : undefined,
+        type: 'command',
         handler: () => switchWorkspace(ws.id),
       });
     }
@@ -367,24 +368,20 @@ function App() {
     // Pane operations
     if (focusedPaneId) {
       actions.push(
-        { id: 'split-h', label: 'Split Horizontal', category: 'Pane', shortcut: 'Ctrl+D', handler: () => handleSplitH(focusedPaneId) },
-        { id: 'split-v', label: 'Split Vertical', category: 'Pane', shortcut: 'Ctrl+Shift+D', handler: () => handleSplitV(focusedPaneId) },
-        { id: 'close-pane', label: 'Close Pane', category: 'Pane', shortcut: 'Ctrl+W', handler: () => handleClosePane(focusedPaneId) },
+        { id: 'split-h', label: 'Split Horizontal', category: 'Pane', shortcut: 'Ctrl+D', type: 'command', handler: () => handleSplitH(focusedPaneId) },
+        { id: 'split-v', label: 'Split Vertical', category: 'Pane', shortcut: 'Ctrl+Shift+D', type: 'command', handler: () => handleSplitV(focusedPaneId) },
+        { id: 'close-pane', label: 'Close Pane', category: 'Pane', shortcut: 'Ctrl+W', type: 'command', handler: () => handleClosePane(focusedPaneId) },
       );
     }
 
     for (const entry of projectFiles.filter((entry) => !entry.isDir).slice(0, 2000)) {
       actions.push({
         id: `file-current-${entry.relativePath}`,
-        label: `Open ${entry.relativePath}`,
+        label: entry.relativePath,
         category: 'File',
+        type: 'file',
+        filePath: entry.relativePath,
         handler: () => handleOpenFile(entry.path, 'current'),
-      });
-      actions.push({
-        id: `file-pane-${entry.relativePath}`,
-        label: `Open ${entry.relativePath} in New Pane`,
-        category: 'File',
-        handler: () => handleOpenFile(entry.path, 'new-pane'),
       });
     }
 
@@ -394,8 +391,8 @@ function App() {
         id: 'open-file',
         label: 'Open File in Code Viewer',
         category: 'Pane',
+        type: 'command',
         handler: () => {
-          // Split the focused pane and make the new pane a code viewer
           const newLayout = splitHorizontal(activeWorkspace.layout, focusedPaneId);
           const existingIds = new Set(findLeafIds(activeWorkspace.layout));
           const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
@@ -404,7 +401,7 @@ function App() {
             const pane = createDefaultPane(activeWorkspace.id);
             pane.id = newPaneId;
             pane.type = 'code_viewer';
-            pane.workingDirectory = '.'; // user will configure via file watcher
+            pane.workingDirectory = '.';
             useWorkspaceStore.setState((s) => ({
               workspaces: s.workspaces.map((w) =>
                 w.id === activeWorkspaceId
@@ -423,6 +420,7 @@ function App() {
         id: `theme-${theme.id}`,
         label: theme.name,
         category: 'Theme',
+        type: 'command',
         handler: () => useSettingsStore.getState().saveSettings({ theme: theme.id }),
       });
     }

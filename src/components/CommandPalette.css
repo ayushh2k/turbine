@@ -9,8 +9,8 @@
 }
 
 .command-palette {
-  width: 480px;
-  max-height: 400px;
+  width: 520px;
+  max-height: 440px;
   background: var(--color-bg, #0b1929);
   border: 1px solid var(--color-accent, #00e5c8);
   border-radius: 8px;
@@ -36,6 +36,37 @@
   opacity: 0.4;
 }
 
+/* Mode indicator bar */
+.command-palette__mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  font-size: 11px;
+  color: var(--color-accent, #00e5c8);
+  opacity: 0.7;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  user-select: none;
+}
+
+.command-palette__mode-hint {
+  margin-left: auto;
+  color: var(--color-fg, #c8dce8);
+  opacity: 0.35;
+  font-size: 10px;
+}
+
+.command-palette__mode-hint kbd {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: inherit;
+  line-height: 1.4;
+  margin: 0 2px;
+}
+
 .command-palette__list {
   overflow-y: auto;
   flex: 1;
@@ -49,6 +80,7 @@
   cursor: pointer;
   font-size: 13px;
   color: var(--color-fg, #c8dce8);
+  transition: background 0.1s;
 }
 
 .command-palette__item--selected {
@@ -63,12 +95,38 @@
 
 .command-palette__item-label {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-palette__item-shortcut {
   font-size: 11px;
   opacity: 0.4;
   font-family: 'JetBrains Mono', monospace;
+}
+
+/* File-specific styling */
+.command-palette__file-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.command-palette__item--file .command-palette__item-label {
+  font-weight: 500;
+}
+
+.command-palette__file-breadcrumb {
+  font-size: 11px;
+  opacity: 0.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  flex-shrink: 1;
 }
 
 .command-palette__empty {

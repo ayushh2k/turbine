@@ -262,6 +262,9 @@ function LeafPane({
           onFocus={() => onFocusPane(paneId)}
           broadcastWrite={broadcastWrite}
           themeId={themeId}
+          onSplitH={() => onSplitH(paneId)}
+          onSplitV={() => onSplitV(paneId)}
+          onClosePane={() => onClosePane(paneId)}
         />
       )}
       {pane?.type === 'code_viewer' && pane.workingDirectory && (

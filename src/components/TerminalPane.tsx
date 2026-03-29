@@ -13,6 +13,7 @@ import { useCommandBlocks } from '../hooks/useCommandBlocks';
 import { TerminalSearch } from './TerminalSearch';
 import { CommandBlocksPanel } from './CommandBlocksPanel';
 import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
+import { TerminalContextMenu } from './TerminalContextMenu';
 import { usePtyStatusStore } from '../hooks/usePtyStatus';
 import { spawnPaneSession } from '../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
@@ -26,6 +27,9 @@ interface TerminalPaneProps {
   onFocus?: () => void;
   broadcastWrite?: (data: Uint8Array) => void;
   themeId?: string;
+  onSplitH?: () => void;
+  onSplitV?: () => void;
+  onClosePane?: () => void;
 }
 
 export function TerminalPane({
@@ -36,6 +40,9 @@ export function TerminalPane({
   onFocus,
   broadcastWrite,
   themeId,
+  onSplitH,
+  onSplitV,
+  onClosePane,
 }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -44,6 +51,8 @@ export function TerminalPane({
   const [showSearch, setShowSearch] = useState(false);
   const [showCommandBlocks, setShowCommandBlocks] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const broadcastWriteRef = useRef<typeof broadcastWrite>(broadcastWrite);
   const {
     blocks: commandBlocks,
@@ -288,9 +297,25 @@ export function TerminalPane({
       return true;
     });
 
+    // Scroll-to-bottom tracking: show button when user scrolls away from bottom
+    const scrollDisposable = terminal.onScroll(() => {
+      const buffer = terminal.buffer.active;
+      const isAtBottom = buffer.viewportY >= buffer.baseY;
+      setShowScrollDown(!isAtBottom);
+    });
+
+    // Also track when new output arrives while scrolled up
+    const writeDisposable = terminal.onWriteParsed(() => {
+      const buffer = terminal.buffer.active;
+      const isAtBottom = buffer.viewportY >= buffer.baseY;
+      setShowScrollDown(!isAtBottom);
+    });
+
     return () => {
       disposed = true;
       dataDisposable.dispose();
+      scrollDisposable.dispose();
+      writeDisposable.dispose();
       resizeObserver.disconnect();
       unlisten?.();
       removePaneSize(paneId);
@@ -312,8 +337,38 @@ export function TerminalPane({
     setMediaItems((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
+  const handleContextMenuEvent = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleContextCopy = useCallback(() => {
+    const selection = terminalRef.current?.getSelection();
+    if (selection) {
+      navigator.clipboard.writeText(selection).catch(() => {});
+    }
+  }, []);
+
+  const handleContextPaste = useCallback(() => {
+    navigator.clipboard.readText().then((text) => {
+      const encoder = new TextEncoder();
+      invoke('pty_write', {
+        paneId,
+        data: Array.from(encoder.encode(text)),
+      }).catch(() => {});
+    }).catch(() => {});
+  }, [paneId]);
+
+  const handleContextClear = useCallback(() => {
+    terminalRef.current?.clear();
+  }, []);
+
+  const handleScrollToBottom = useCallback(() => {
+    terminalRef.current?.scrollToBottom();
+  }, []);
+
   return (
-    <div className="terminal-pane" onClick={handleFocus}>
+    <div className="terminal-pane" onClick={handleFocus} onContextMenu={handleContextMenuEvent}>
       <div className="terminal-pane__container" ref={containerRef} />
       {commandBlocks.length > 0 && !showCommandBlocks && (
         <button
@@ -338,6 +393,31 @@ export function TerminalPane({
         />
       )}
       <MediaOverlay items={mediaItems} onDismiss={dismissMedia} />
+      {showScrollDown && (
+        <button
+          type="button"
+          className="terminal-pane__scroll-down"
+          onClick={handleScrollToBottom}
+          title="Scroll to bottom"
+        >
+          ↓
+        </button>
+      )}
+      {contextMenu && (
+        <TerminalContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onCopy={handleContextCopy}
+          onPaste={handleContextPaste}
+          onClear={handleContextClear}
+          onSearch={() => setShowSearch(true)}
+          onSplitH={() => onSplitH?.()}
+          onSplitV={() => onSplitV?.()}
+          onClosePane={() => onClosePane?.()}
+          hasSelection={!!terminalRef.current?.getSelection()}
+        />
+      )}
       {processExited && (
         <div className="terminal-pane__session-ended" aria-live="polite">
           Process exited (code: {exitCode ?? 'unknown'}) — hover pane toolbar to restart
