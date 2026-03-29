@@ -1,17 +1,20 @@
 import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } from 'react';
-import { useWorkspaceStore } from './state/workspaceStore';
+import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { keybindingManager } from './state/keybindingManager';
 import { launchAgents } from './state/agentLauncher';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { navigatePane } from './state/layoutEngine';
+import { navigatePane, findLeafIds } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
+import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { UpdateNotification } from './components/UpdateNotification';
+import type { PaneTemplate } from './types';
 import {
+  applyTemplate,
   splitHorizontal,
   splitVertical,
   closePane,
@@ -37,7 +40,10 @@ function App() {
   const { settings, loadSettings } = useSettingsStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
-  const { toggleBroadcast } = useBroadcast(focusedPaneId);
+  const { broadcastWrite, broadcastMode, toggleBroadcast } = useBroadcast(focusedPaneId);
+
+  // Only pass broadcastWrite when broadcast mode is active
+  const activeBroadcastWrite = broadcastMode ? broadcastWrite : undefined;
 
   // Startup: restore workspaces, settings, apply theme
   useEffect(() => {
@@ -134,6 +140,47 @@ function App() {
       }));
     },
     [activeWorkspace, activeWorkspaceId],
+  );
+
+  // Apply a pane layout template
+  const handleApplyTemplate = useCallback(
+    (template: PaneTemplate) => {
+      if (!activeWorkspace || !activeWorkspaceId) return;
+      const newLayout = applyTemplate(template);
+      const newPaneIds = findLeafIds(newLayout);
+      const newPanes = newPaneIds.map((id) => ({
+        ...createDefaultPane(activeWorkspaceId),
+        id,
+      }));
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId
+            ? { ...w, layout: newLayout, panes: newPanes }
+            : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
+  );
+
+  // Update individual pane config (auto-launch, startup command)
+  const handlePaneConfigChange = useCallback(
+    (paneId: string, changes: Partial<import('./types').PaneConfig>) => {
+      if (!activeWorkspaceId) return;
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId
+            ? {
+                ...w,
+                panes: w.panes.map((p) =>
+                  p.id === paneId ? { ...p, ...changes } : p,
+                ),
+              }
+            : w,
+        ),
+      }));
+    },
+    [activeWorkspaceId],
   );
 
   // Register keybindings
@@ -247,6 +294,35 @@ function App() {
       );
     }
 
+    // Open file in code viewer
+    if (focusedPaneId && activeWorkspace) {
+      actions.push({
+        id: 'open-file',
+        label: 'Open File in Code Viewer',
+        category: 'Pane',
+        handler: () => {
+          // Split the focused pane and make the new pane a code viewer
+          const newLayout = splitHorizontal(activeWorkspace.layout, focusedPaneId);
+          const existingIds = new Set(findLeafIds(activeWorkspace.layout));
+          const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+          const newPaneId = newIds[0];
+          if (newPaneId) {
+            const pane = createDefaultPane(activeWorkspace.id);
+            pane.id = newPaneId;
+            pane.type = 'code_viewer';
+            pane.workingDirectory = '.'; // user will configure via file watcher
+            useWorkspaceStore.setState((s) => ({
+              workspaces: s.workspaces.map((w) =>
+                w.id === activeWorkspaceId
+                  ? { ...w, layout: newLayout, panes: [...w.panes, pane] }
+                  : w,
+              ),
+            }));
+          }
+        },
+      });
+    }
+
     // Theme selection
     for (const theme of getAllThemes()) {
       actions.push({
@@ -271,7 +347,10 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app">
-        <TabBar onContextMenu={handleContextMenu} />
+        <div className="app__header">
+          <TabBar onContextMenu={handleContextMenu} />
+          <TemplatePicker onSelect={handleApplyTemplate} />
+        </div>
         <div className="app__content">
           {activeWorkspace && (
             <PaneContainer
@@ -283,6 +362,9 @@ function App() {
               onSplitH={handleSplitH}
               onSplitV={handleSplitV}
               onClosePane={handleClosePane}
+              broadcastWrite={activeBroadcastWrite}
+              onPaneConfigChange={handlePaneConfigChange}
+              themeId={settings.theme}
             />
           )}
         </div>

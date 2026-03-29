@@ -38,6 +38,16 @@ html, body, #root {
   height: 100%;
 }
 
+.app__header {
+  display: flex;
+  align-items: stretch;
+  background: var(--tab-bar-bg);
+}
+
+.app__header > .tab-bar {
+  flex: 1;
+}
+
 .app__content {
   flex: 1;
   overflow: hidden;

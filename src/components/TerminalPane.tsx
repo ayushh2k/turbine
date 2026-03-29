@@ -7,6 +7,7 @@ import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useSettingsStore } from '../state/settingsStore';
+import { getXtermTheme } from '../themes/themeEngine';
 import { TerminalSearch } from './TerminalSearch';
 import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
 import '@xterm/xterm/css/xterm.css';
@@ -18,8 +19,8 @@ interface TerminalPaneProps {
   env?: Record<string, string>;
   shell?: string | null;
   onFocus?: () => void;
-  /** Optional broadcast write function — when provided, keystrokes route through this instead of direct pty_write */
   broadcastWrite?: (data: Uint8Array) => void;
+  themeId?: string;
 }
 
 export function TerminalPane({
@@ -29,6 +30,7 @@ export function TerminalPane({
   shell = null,
   onFocus,
   broadcastWrite,
+  themeId,
 }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -43,12 +45,13 @@ export function TerminalPane({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const xtermTheme = themeId ? getXtermTheme(themeId) : undefined;
     const terminal = new Terminal({
       scrollback: scrollbackLines,
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-      theme: {
+      theme: xtermTheme ?? {
         background: '#0b1929',
         foreground: '#c8dce8',
         cursor: '#00e5c8',
@@ -209,7 +212,7 @@ export function TerminalPane({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [paneId, cwd, env, shell, scrollbackLines, broadcastWrite]);
+  }, [paneId, cwd, env, shell, scrollbackLines, broadcastWrite, themeId]);
 
   const handleFocus = useCallback(() => {
     onFocus?.();

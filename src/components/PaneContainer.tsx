@@ -14,6 +14,9 @@ interface PaneContainerProps {
   onSplitH: (paneId: string) => void;
   onSplitV: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
+  broadcastWrite?: (data: Uint8Array) => void;
+  onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  themeId?: string;
 }
 
 export function PaneContainer({
@@ -25,6 +28,9 @@ export function PaneContainer({
   onSplitH,
   onSplitV,
   onClosePane,
+  broadcastWrite,
+  onPaneConfigChange,
+  themeId,
 }: PaneContainerProps) {
   return (
     <div className="pane-container">
@@ -37,6 +43,9 @@ export function PaneContainer({
         onSplitH={onSplitH}
         onSplitV={onSplitV}
         onClosePane={onClosePane}
+        broadcastWrite={broadcastWrite}
+        onPaneConfigChange={onPaneConfigChange}
+        themeId={themeId}
       />
     </div>
   );
@@ -51,6 +60,9 @@ interface LayoutRendererProps {
   onSplitH: (paneId: string) => void;
   onSplitV: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
+  broadcastWrite?: (data: Uint8Array) => void;
+  onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
+  themeId?: string;
 }
 
 function LayoutRenderer({
@@ -62,6 +74,9 @@ function LayoutRenderer({
   onSplitH,
   onSplitV,
   onClosePane,
+  broadcastWrite,
+  onPaneConfigChange,
+  themeId,
 }: LayoutRendererProps) {
   if (node.type === 'leaf') {
     const pane = panes.find((p) => p.id === node.paneId);
@@ -79,6 +94,8 @@ function LayoutRenderer({
             env={pane.envVars}
             shell={pane.startupCommand}
             onFocus={() => onFocusPane(node.paneId)}
+            broadcastWrite={broadcastWrite}
+            themeId={themeId}
           />
         )}
         {pane?.type === 'code_viewer' && pane.workingDirectory && (
@@ -103,6 +120,18 @@ function LayoutRenderer({
           onSplitH={() => onSplitH(node.paneId)}
           onSplitV={() => onSplitV(node.paneId)}
           onClose={() => onClosePane(node.paneId)}
+          autoLaunch={pane?.autoLaunch}
+          startupCommand={pane?.startupCommand}
+          onAutoLaunchChange={
+            onPaneConfigChange
+              ? (v) => onPaneConfigChange(node.paneId, { autoLaunch: v })
+              : undefined
+          }
+          onStartupCommandChange={
+            onPaneConfigChange
+              ? (v) => onPaneConfigChange(node.paneId, { startupCommand: v })
+              : undefined
+          }
         />
       </div>
     );
@@ -131,6 +160,9 @@ function LayoutRenderer({
           onSplitH={onSplitH}
           onSplitV={onSplitV}
           onClosePane={onClosePane}
+          broadcastWrite={broadcastWrite}
+          onPaneConfigChange={onPaneConfigChange}
+          themeId={themeId}
         />
       </div>
       <ResizeHandle
@@ -149,6 +181,9 @@ function LayoutRenderer({
           onSplitH={onSplitH}
           onSplitV={onSplitV}
           onClosePane={onClosePane}
+          broadcastWrite={broadcastWrite}
+          onPaneConfigChange={onPaneConfigChange}
+          themeId={themeId}
         />
       </div>
     </div>
