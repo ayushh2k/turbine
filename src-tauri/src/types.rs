@@ -26,7 +26,6 @@ pub struct PaneConfig {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AppSettings {
     pub theme: String,
-    pub auto_update_enabled: bool,
     pub default_shell: Option<String>,
     pub agent_launch_delay: u64,
     pub terminal_scrollback_lines: u32,
@@ -34,10 +33,10 @@ pub struct AppSettings {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct UpdateInfo {
-    pub version: String,
-    pub summary: String,
-    pub download_url: String,
+pub struct CustomThemeRecord {
+    pub id: String,
+    pub name: String,
+    pub theme_json: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

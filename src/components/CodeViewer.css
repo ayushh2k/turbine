@@ -9,9 +9,10 @@
 
 .code-viewer__header {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: 4px 10px;
+  gap: 10px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12px;
@@ -19,11 +20,65 @@
   flex-shrink: 0;
 }
 
+.code-viewer__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 4px;
+}
+
+.code-viewer__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.code-viewer__tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-viewer__tab--active {
+  background: rgba(0, 229, 200, 0.12);
+}
+
+.code-viewer__tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-viewer__tab-close {
+  opacity: 0.5;
+}
+
+.code-viewer__tab-close:hover {
+  opacity: 1;
+}
+
 .code-viewer__filename {
   display: flex;
   align-items: center;
   gap: 6px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .code-viewer__dirty-dot {
@@ -34,10 +89,21 @@
   background: #f5a623;
 }
 
+.code-viewer__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  min-width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .code-viewer__lang {
   opacity: 0.5;
   font-size: 11px;
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .code-viewer__editor {

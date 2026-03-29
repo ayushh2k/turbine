@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { launchAgents } from '../state/agentLauncher';
-import { applyTheme } from '../themes/themeEngine';
+import { applyTheme, loadPersistedThemes } from '../themes/themeEngine';
 
 export function useAppStartup(createWorkspace: (name?: string) => unknown) {
   const [loading, setLoading] = useState(true);
@@ -14,6 +14,7 @@ export function useAppStartup(createWorkspace: (name?: string) => unknown) {
 
     async function init() {
       await loadSettings();
+      await loadPersistedThemes().catch(() => {});
       await restoreAll();
 
       if (cancelled) {

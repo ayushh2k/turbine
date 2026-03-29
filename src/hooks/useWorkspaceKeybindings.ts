@@ -56,6 +56,15 @@ export function useWorkspaceKeybindings({
     });
     km.register('toggleBroadcast', toggleBroadcast);
     km.register('openSettings', () => setShowSettings((visible) => !visible));
+    km.register('search', () => {
+      if (focusedPaneId) {
+        window.dispatchEvent(
+          new CustomEvent('turbine:search-focused-pane', {
+            detail: { paneId: focusedPaneId },
+          }),
+        );
+      }
+    });
 
     km.register('nextWorkspace', () => {
       const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);

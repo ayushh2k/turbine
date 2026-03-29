@@ -1,4 +1,4 @@
-use crate::types::{AppSettings, PaneConfig, WorkspaceConfig};
+use crate::types::{AppSettings, CustomThemeRecord, PaneConfig, WorkspaceConfig};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -181,7 +181,6 @@ pub fn save_settings(db: State<'_, DbState>, settings: AppSettings) -> Result<()
 
     let pairs: Vec<(&str, String)> = vec![
         ("theme", settings.theme),
-        ("auto_update_enabled", settings.auto_update_enabled.to_string()),
         ("default_shell", settings.default_shell.unwrap_or_default()),
         ("agent_launch_delay", settings.agent_launch_delay.to_string()),
         (
@@ -199,8 +198,9 @@ pub fn save_settings(db: State<'_, DbState>, settings: AppSettings) -> Result<()
         .map_err(|e| e.to_string())?;
     }
 
-    // Save custom keybindings into the keybindings table as well
-    // (settings.custom_keybindings mirrors the keybindings table)
+    conn.execute("DELETE FROM keybindings", [])
+        .map_err(|e| e.to_string())?;
+
     for (action, binding) in &settings.custom_keybindings {
         conn.execute(
             "INSERT INTO keybindings (action, binding) VALUES (?1, ?2)
@@ -228,9 +228,6 @@ pub fn load_settings(db: State<'_, DbState>) -> Result<AppSettings, String> {
     };
 
     let theme = get("theme")?.unwrap_or_else(|| "subnautica".to_string());
-    let auto_update_enabled = get("auto_update_enabled")?
-        .and_then(|v| v.parse::<bool>().ok())
-        .unwrap_or(true);
     let default_shell = get("default_shell")?.filter(|s| !s.is_empty());
     let agent_launch_delay = get("agent_launch_delay")?
         .and_then(|v| v.parse::<u64>().ok())
@@ -244,7 +241,6 @@ pub fn load_settings(db: State<'_, DbState>) -> Result<AppSettings, String> {
 
     Ok(AppSettings {
         theme,
-        auto_update_enabled,
         default_shell,
         agent_launch_delay,
         terminal_scrollback_lines,
@@ -276,26 +272,43 @@ fn load_keybindings_inner(conn: &Connection) -> Result<HashMap<String, String>, 
 }
 
 #[tauri::command]
-pub fn save_keybindings(
-    db: State<'_, DbState>,
-    keybindings: HashMap<String, String>,
-) -> Result<(), String> {
+pub fn save_theme(db: State<'_, DbState>, theme: CustomThemeRecord) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
 
-    for (action, binding) in &keybindings {
-        conn.execute(
-            "INSERT INTO keybindings (action, binding) VALUES (?1, ?2)
-             ON CONFLICT(action) DO UPDATE SET binding = excluded.binding",
-            rusqlite::params![action, binding],
-        )
-        .map_err(|e| e.to_string())?;
-    }
+    conn.execute(
+        "INSERT INTO themes (id, name, theme_json, is_builtin) VALUES (?1, ?2, ?3, 0)
+         ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            theme_json = excluded.theme_json,
+            is_builtin = 0",
+        rusqlite::params![theme.id, theme.name, theme.theme_json],
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn load_keybindings(db: State<'_, DbState>) -> Result<HashMap<String, String>, String> {
+pub fn load_themes(db: State<'_, DbState>) -> Result<Vec<CustomThemeRecord>, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
-    load_keybindings_inner(&conn)
+    let mut stmt = conn
+        .prepare("SELECT id, name, theme_json FROM themes WHERE is_builtin = 0 ORDER BY name")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(CustomThemeRecord {
+                id: row.get::<_, String>(0)?,
+                name: row.get::<_, String>(1)?,
+                theme_json: row.get::<_, String>(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut themes = Vec::new();
+    for row in rows {
+        themes.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(themes)
 }

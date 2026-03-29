@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, PaneConfig, LayoutNode } from '../types';
+import { findLeafIds } from './layoutEngine';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -47,8 +48,6 @@ function createDefaultWorkspace(name: string): Workspace {
     layout,
     isActive: false,
     panes: [pane],
-    broadcastMode: false,
-    broadcastTargets: new Set(),
   };
 }
 
@@ -73,13 +72,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   deleteWorkspace: (id: string) => {
+    void invoke('delete_workspace', { workspaceId: id }).catch(() => {});
+
     set((state) => {
       const filtered = state.workspaces.filter((w) => w.id !== id);
-      // Recompute tab orders
+      if (filtered.length === 0) {
+        const workspace = createDefaultWorkspace('Workspace 1');
+        return {
+          workspaces: [{ ...workspace, tabOrder: 0 }],
+          activeWorkspaceId: workspace.id,
+        };
+      }
+
       const reordered = filtered.map((w, i) => ({ ...w, tabOrder: i }));
       let newActiveId = state.activeWorkspaceId;
       if (newActiveId === id) {
-        newActiveId = reordered.length > 0 ? reordered[0].id : null;
+        newActiveId = reordered[0].id;
       }
       return { workspaces: reordered, activeWorkspaceId: newActiveId };
     });
@@ -119,8 +127,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tabOrder: workspaces.length,
       layout: remapLayout(source.layout),
       panes: newPanes,
-      broadcastMode: false,
-      broadcastTargets: new Set(),
     };
 
     set((state) => ({
@@ -219,14 +225,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }>;
     }>>('load_workspaces');
 
-    const workspaces: Workspace[] = rawWorkspaces.map((raw) => ({
-      id: raw.id,
-      name: raw.name,
-      tabColor: raw.tab_color,
-      tabOrder: raw.tab_order,
-      layout: JSON.parse(raw.layout_json) as LayoutNode,
-      isActive: raw.is_active,
-      panes: raw.panes.map((p) => ({
+    const workspaces: Workspace[] = rawWorkspaces.map((raw) => {
+      let layout = JSON.parse(raw.layout_json) as LayoutNode;
+      let panes = raw.panes.map((p) => ({
         id: p.id,
         workspaceId: p.workspace_id,
         type: p.pane_type as PaneConfig['type'],
@@ -234,10 +235,46 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startupCommand: p.startup_command,
         autoLaunch: p.auto_launch,
         envVars: p.env_vars,
-      })),
-      broadcastMode: false,
-      broadcastTargets: new Set(),
-    }));
+      }));
+
+      if (panes.length === 0) {
+        const pane = createDefaultPane(raw.id);
+        panes = [pane];
+        layout = { type: 'leaf', paneId: pane.id };
+      } else {
+        const leafIds = findLeafIds(layout);
+        if (leafIds.length === 0) {
+          const pane = panes[0];
+          layout = { type: 'leaf', paneId: pane.id };
+        } else {
+          const paneIds = new Set(panes.map((pane) => pane.id));
+          const missingPanes = leafIds
+            .filter((paneId) => !paneIds.has(paneId))
+            .map((paneId) => ({ ...createDefaultPane(raw.id), id: paneId }));
+
+          panes = [
+            ...panes.filter((pane) => leafIds.includes(pane.id)),
+            ...missingPanes,
+          ];
+
+          if (panes.length === 0) {
+            const pane = createDefaultPane(raw.id);
+            panes = [pane];
+            layout = { type: 'leaf', paneId: pane.id };
+          }
+        }
+      }
+
+      return {
+        id: raw.id,
+        name: raw.name,
+        tabColor: raw.tab_color,
+        tabOrder: raw.tab_order,
+        layout,
+        isActive: raw.is_active,
+        panes,
+      };
+    });
 
     const activeWs = workspaces.find((w) => w.isActive);
     set({

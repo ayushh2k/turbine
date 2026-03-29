@@ -16,7 +16,7 @@ function getPanePath(pane: PaneConfig): string | null {
     return null;
   }
 
-  if (pane.type === 'code_viewer') {
+  if (pane.type === 'code_viewer' || pane.type === 'media_viewer') {
     return getParentPath(pane.workingDirectory);
   }
 
@@ -32,6 +32,24 @@ export function deriveWorkspaceRoot(
   }
 
   const focusedPane = workspace.panes.find((pane) => pane.id === focusedPaneId);
+  if (focusedPane?.type === 'terminal') {
+    const focusedTerminalRoot = getPanePath(focusedPane);
+    if (focusedTerminalRoot) {
+      return focusedTerminalRoot;
+    }
+  }
+
+  for (const pane of workspace.panes) {
+    if (pane.type !== 'terminal') {
+      continue;
+    }
+
+    const root = getPanePath(pane);
+    if (root) {
+      return root;
+    }
+  }
+
   const focusedRoot = focusedPane ? getPanePath(focusedPane) : null;
   if (focusedRoot) {
     return focusedRoot;

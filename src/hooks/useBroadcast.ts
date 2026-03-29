@@ -1,15 +1,34 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useWorkspaceStore } from '../state/workspaceStore';
 
 /**
  * Hook that provides a broadcast-aware write function.
- * When broadcast mode is active, keystrokes are fanned out to all selected targets.
+ * When broadcast mode is active, keystrokes are fanned out to every terminal pane
+ * in the active workspace.
  * When inactive, writes only to the focused pane.
  */
-export function useBroadcast(focusedPaneId: string | null) {
+export function useBroadcast(focusedPaneId: string | null, targetPaneIds: string[]) {
   const broadcastMode = useWorkspaceStore((s) => s.broadcastMode);
   const broadcastTargets = useWorkspaceStore((s) => s.broadcastTargets);
+
+  useEffect(() => {
+    if (!broadcastMode) {
+      return;
+    }
+
+    const nextTargets = new Set(
+      targetPaneIds.filter((paneId) => paneId !== focusedPaneId),
+    );
+
+    const hasSameTargets =
+      broadcastTargets.size === nextTargets.size &&
+      Array.from(nextTargets).every((paneId) => broadcastTargets.has(paneId));
+
+    if (!hasSameTargets) {
+      useWorkspaceStore.getState().setBroadcastTargets(nextTargets);
+    }
+  }, [broadcastMode, broadcastTargets, focusedPaneId, targetPaneIds]);
 
   const broadcastWrite = useCallback(
     (data: Uint8Array) => {
@@ -37,42 +56,18 @@ export function useBroadcast(focusedPaneId: string | null) {
 
   const toggleBroadcast = useCallback(() => {
     const store = useWorkspaceStore.getState();
-    store.setBroadcastMode(!store.broadcastMode);
-  }, []);
-
-  const toggleTarget = useCallback(
-    (paneId: string) => {
-      const store = useWorkspaceStore.getState();
-      const targets = new Set(store.broadcastTargets);
-      if (targets.has(paneId)) {
-        targets.delete(paneId);
-      } else {
-        targets.add(paneId);
-      }
-      store.setBroadcastTargets(targets);
-    },
-    [],
-  );
-
-  const selectAllTargets = useCallback(
-    (paneIds: string[]) => {
-      const store = useWorkspaceStore.getState();
-      store.setBroadcastTargets(new Set(paneIds));
-    },
-    [],
-  );
-
-  const clearTargets = useCallback(() => {
-    useWorkspaceStore.getState().setBroadcastTargets(new Set());
-  }, []);
+    const nextMode = !store.broadcastMode;
+    store.setBroadcastMode(nextMode);
+    store.setBroadcastTargets(
+      nextMode
+        ? new Set(targetPaneIds.filter((paneId) => paneId !== focusedPaneId))
+        : new Set(),
+    );
+  }, [focusedPaneId, targetPaneIds]);
 
   return {
     broadcastMode,
-    broadcastTargets,
     broadcastWrite,
     toggleBroadcast,
-    toggleTarget,
-    selectAllTargets,
-    clearTargets,
   };
 }

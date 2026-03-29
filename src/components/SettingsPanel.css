@@ -114,32 +114,22 @@
   color: var(--color-fg, #c8dce8);
 }
 
+.settings-panel__helper {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-fg, #c8dce8);
+  opacity: 0.7;
+}
+
+.settings-panel__helper--error {
+  color: #ff7b72;
+  opacity: 1;
+}
+
 /* Number input — constrain width */
 
 .settings-panel__input--number {
   width: 120px;
-}
-
-/* Checkbox field */
-
-.settings-panel__checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.settings-panel__checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-accent, #00e5c8);
-  cursor: pointer;
-}
-
-.settings-panel__checkbox-label {
-  font-size: 13px;
-  color: var(--color-fg, #c8dce8);
-  cursor: pointer;
 }
 
 /* Keybindings table */

@@ -4,7 +4,9 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--color-bg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 12%),
+    var(--color-bg);
 }
 
 .pane-split {
@@ -18,11 +20,15 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--pane-border);
+  border: 1px solid rgba(16, 42, 64, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .pane-leaf--focused {
   border-color: var(--pane-border-active);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 229, 200, 0.08),
+    0 0 0 1px rgba(0, 229, 200, 0.14);
 }
 
 .pane-leaf--drag-over {

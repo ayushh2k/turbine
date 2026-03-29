@@ -140,14 +140,24 @@ export function TabBar({ onContextMenu }: TabBarProps) {
                   onBlur={commitRename}
                 />
               ) : (
-                <span
-                  className="tab-bar__tab-name"
-                  onDoubleClick={() => handleDoubleClick(ws)}
-                >
-                  {ws.name}
+                <span className="tab-bar__tab-content">
+                  <span
+                    className="tab-bar__tab-name"
+                    onDoubleClick={() => handleDoubleClick(ws)}
+                  >
+                    {ws.name}
+                  </span>
+                  {isActive && (
+                    <span
+                      className="tab-bar__tab-state"
+                      aria-label="Current workspace"
+                    >
+                      Current
+                    </span>
+                  )}
                 </span>
               )}
-              {ws.broadcastMode && (
+              {broadcastMode && isActive && (
                 <span
                   className="tab-bar__broadcast-badge"
                   title="Broadcast mode active"

@@ -7,8 +7,6 @@ export interface Workspace {
   layout: LayoutNode;
   isActive: boolean;
   panes: PaneConfig[];
-  broadcastMode: boolean;
-  broadcastTargets: Set<string>; // pane IDs
 }
 
 // Pane configuration
@@ -38,18 +36,10 @@ export type PaneTemplate = 1 | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16;
 // App settings
 export interface AppSettings {
   theme: string;
-  autoUpdateEnabled: boolean;
   defaultShell: string | null;
   agentLaunchDelay: number; // milliseconds
   terminalScrollbackLines: number;
   customKeybindings: Record<string, string>;
-}
-
-// Update info
-export interface UpdateInfo {
-  version: string;
-  summary: string;
-  downloadUrl: string;
 }
 
 // File content for incremental loading

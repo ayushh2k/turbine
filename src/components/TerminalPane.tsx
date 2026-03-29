@@ -75,6 +75,21 @@ export function TerminalPane({
   }, [broadcastWrite]);
 
   useEffect(() => {
+    const handleSearch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ paneId?: string }>;
+      if (customEvent.detail?.paneId !== paneId) {
+        return;
+      }
+
+      setShowSearch(true);
+      terminalRef.current?.focus();
+    };
+
+    window.addEventListener('turbine:search-focused-pane', handleSearch);
+    return () => window.removeEventListener('turbine:search-focused-pane', handleSearch);
+  }, [paneId]);
+
+  useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
       return;

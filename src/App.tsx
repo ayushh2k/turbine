@@ -16,9 +16,9 @@ import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SettingsPanel } from './components/SettingsPanel';
-import { UpdateNotification } from './components/UpdateNotification';
 import type { FileTreeEntry, PaneTemplate } from './types';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
+import { getPaneTypeForPath } from './utils/mediaFiles';
 import {
   applyTemplate,
   splitHorizontal,
@@ -46,15 +46,31 @@ function App() {
 
   const { settings } = useSettingsStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const broadcastPaneIds = useMemo(
+    () =>
+      activeWorkspace?.panes
+        .filter((pane) => pane.type === 'terminal')
+        .map((pane) => pane.id) ?? [],
+    [activeWorkspace],
+  );
 
-  const { broadcastWrite, broadcastMode, toggleBroadcast } = useBroadcast(focusedPaneId);
+  const { broadcastWrite, broadcastMode, toggleBroadcast } = useBroadcast(
+    focusedPaneId,
+    broadcastPaneIds,
+  );
   const workspaceRoot = useMemo(
     () => deriveWorkspaceRoot(activeWorkspace, focusedPaneId),
     [activeWorkspace, focusedPaneId],
   );
   const activeFilePath =
-    activeWorkspace?.panes.find((pane) => pane.id === focusedPaneId && pane.type === 'code_viewer')?.workingDirectory ??
-    activeWorkspace?.panes.find((pane) => pane.type === 'code_viewer')?.workingDirectory ??
+    activeWorkspace?.panes.find(
+      (pane) =>
+        pane.id === focusedPaneId &&
+        (pane.type === 'code_viewer' || pane.type === 'media_viewer'),
+    )?.workingDirectory ??
+    activeWorkspace?.panes.find(
+      (pane) => pane.type === 'code_viewer' || pane.type === 'media_viewer',
+    )?.workingDirectory ??
     null;
 
   // Listen for PTY exit events and track per-pane process status
@@ -68,6 +84,12 @@ function App() {
   useEffect(() => {
     applyTheme(settings.theme);
   }, [settings.theme]);
+
+  useEffect(() => {
+    if (!loading && workspaces.length === 0) {
+      createWorkspace('Workspace 1');
+    }
+  }, [loading, workspaces.length, createWorkspace]);
 
   // Update window title when active workspace changes
   useEffect(() => {
@@ -236,59 +258,70 @@ function App() {
   }, []);
 
   const handleOpenFile = useCallback(
-    (filePath: string) => {
+    (filePath: string, mode: 'current' | 'new-pane' = 'current') => {
       if (!activeWorkspace || !activeWorkspaceId) {
         return;
       }
 
-      const existingCodePane =
-        activeWorkspace.panes.find((pane) => pane.id === focusedPaneId && pane.type === 'code_viewer') ??
-        activeWorkspace.panes.find((pane) => pane.type === 'code_viewer');
+      const paneType = getPaneTypeForPath(filePath);
 
-      if (existingCodePane) {
+      const createViewerPaneForFile = () => {
+        const sourcePaneId = focusedPaneId ?? activeWorkspace.panes[0]?.id;
+        if (!sourcePaneId) {
+          return;
+        }
+
+        const newLayout = splitHorizontal(activeWorkspace.layout, sourcePaneId);
+        const existingIds = new Set(activeWorkspace.panes.map((pane) => pane.id));
+        const newPaneId = findLeafIds(newLayout).find((paneId) => !existingIds.has(paneId));
+        if (!newPaneId) {
+          return;
+        }
+
+        const pane = createDefaultPane(activeWorkspaceId);
+        pane.id = newPaneId;
+        pane.type = paneType;
+        pane.workingDirectory = filePath;
+
+        useWorkspaceStore.setState((state) => ({
+          workspaces: state.workspaces.map((workspace) =>
+            workspace.id === activeWorkspaceId
+              ? { ...workspace, layout: newLayout, panes: [...workspace.panes, pane] }
+              : workspace,
+          ),
+        }));
+        setFocusedPaneId(newPaneId);
+      };
+
+      if (mode === 'new-pane') {
+        createViewerPaneForFile();
+        return;
+      }
+
+      const existingViewerPane =
+        activeWorkspace.panes.find((pane) => pane.id === focusedPaneId && pane.type === paneType) ??
+        activeWorkspace.panes.find((pane) => pane.type === paneType);
+
+      if (existingViewerPane) {
         useWorkspaceStore.setState((state) => ({
           workspaces: state.workspaces.map((workspace) =>
             workspace.id === activeWorkspaceId
               ? {
                   ...workspace,
                   panes: workspace.panes.map((pane) =>
-                    pane.id === existingCodePane.id
-                      ? { ...pane, type: 'code_viewer', workingDirectory: filePath }
+                    pane.id === existingViewerPane.id
+                      ? { ...pane, type: paneType, workingDirectory: filePath }
                       : pane,
                   ),
                 }
               : workspace,
           ),
         }));
-        setFocusedPaneId(existingCodePane.id);
+        setFocusedPaneId(existingViewerPane.id);
         return;
       }
 
-      const sourcePaneId = focusedPaneId ?? activeWorkspace.panes[0]?.id;
-      if (!sourcePaneId) {
-        return;
-      }
-
-      const newLayout = splitHorizontal(activeWorkspace.layout, sourcePaneId);
-      const existingIds = new Set(activeWorkspace.panes.map((pane) => pane.id));
-      const newPaneId = findLeafIds(newLayout).find((paneId) => !existingIds.has(paneId));
-      if (!newPaneId) {
-        return;
-      }
-
-      const pane = createDefaultPane(activeWorkspaceId);
-      pane.id = newPaneId;
-      pane.type = 'code_viewer';
-      pane.workingDirectory = filePath;
-
-      useWorkspaceStore.setState((state) => ({
-        workspaces: state.workspaces.map((workspace) =>
-          workspace.id === activeWorkspaceId
-            ? { ...workspace, layout: newLayout, panes: [...workspace.panes, pane] }
-            : workspace,
-        ),
-      }));
-      setFocusedPaneId(newPaneId);
+      createViewerPaneForFile();
     },
     [activeWorkspace, activeWorkspaceId, focusedPaneId],
   );
@@ -342,10 +375,16 @@ function App() {
 
     for (const entry of projectFiles.filter((entry) => !entry.isDir).slice(0, 2000)) {
       actions.push({
-        id: `file-${entry.relativePath}`,
-        label: entry.relativePath,
+        id: `file-current-${entry.relativePath}`,
+        label: `Open ${entry.relativePath}`,
         category: 'File',
-        handler: () => handleOpenFile(entry.path),
+        handler: () => handleOpenFile(entry.path, 'current'),
+      });
+      actions.push({
+        id: `file-pane-${entry.relativePath}`,
+        label: `Open ${entry.relativePath} in New Pane`,
+        category: 'File',
+        handler: () => handleOpenFile(entry.path, 'new-pane'),
       });
     }
 
@@ -415,22 +454,30 @@ function App() {
             onRefresh={handleRefreshProjectFiles}
           />
           <div className="app__workspace">
-          {activeWorkspace && (
-            <PaneContainer
-              layout={activeWorkspace.layout}
-              panes={activeWorkspace.panes}
-              focusedPaneId={focusedPaneId}
-              onFocusPane={setFocusedPaneId}
-              onResize={handleResize}
-              onSplitH={handleSplitH}
-              onSplitV={handleSplitV}
-              onClosePane={handleClosePane}
-              broadcastWrite={activeBroadcastWrite}
-              onPaneConfigChange={handlePaneConfigChange}
-              onMovePane={handleMovePane}
-              themeId={settings.theme}
-            />
-          )}
+            {workspaces.map((workspace) => (
+              <div
+                key={workspace.id}
+                className={[
+                  'app__workspace-panel',
+                  workspace.id === activeWorkspaceId ? 'app__workspace-panel--active' : '',
+                ].filter(Boolean).join(' ')}
+              >
+                <PaneContainer
+                  layout={workspace.layout}
+                  panes={workspace.panes}
+                  focusedPaneId={workspace.id === activeWorkspaceId ? focusedPaneId : null}
+                  onFocusPane={setFocusedPaneId}
+                  onResize={handleResize}
+                  onSplitH={handleSplitH}
+                  onSplitV={handleSplitV}
+                  onClosePane={handleClosePane}
+                  broadcastWrite={workspace.id === activeWorkspaceId ? activeBroadcastWrite : undefined}
+                  onPaneConfigChange={handlePaneConfigChange}
+                  onMovePane={handleMovePane}
+                  themeId={settings.theme}
+                />
+              </div>
+            ))}
           </div>
         </div>
 
@@ -446,8 +493,6 @@ function App() {
         )}
 
         {contextMenuElement}
-
-        <UpdateNotification />
       </div>
     </ErrorBoundary>
   );

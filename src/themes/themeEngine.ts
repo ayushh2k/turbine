@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import type { ThemeDef } from '../types';
 import { builtinThemes } from './builtinThemes';
 
@@ -39,6 +40,27 @@ export function loadCustomThemeJson(json: string): ThemeDef {
   }
   registerCustomTheme(theme);
   return theme;
+}
+
+export async function loadPersistedThemes(): Promise<void> {
+  const themes = await invoke<Array<{ theme_json: string }>>('load_themes');
+  for (const theme of themes) {
+    try {
+      loadCustomThemeJson(theme.theme_json);
+    } catch {
+      // Ignore malformed saved themes so startup stays resilient.
+    }
+  }
+}
+
+export async function persistCustomTheme(theme: ThemeDef, themeJson?: string): Promise<void> {
+  await invoke('save_theme', {
+    theme: {
+      id: theme.id,
+      name: theme.name,
+      theme_json: themeJson ?? JSON.stringify(theme),
+    },
+  });
 }
 
 /**

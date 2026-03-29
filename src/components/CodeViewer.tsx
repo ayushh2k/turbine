@@ -15,6 +15,7 @@ interface CodeViewerProps {
   filePath: string;
   onFocus?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onActiveFileChange?: (filePath: string) => void;
 }
 
 const CHUNK_SIZE = 512 * 1024; // 512 KB chunks for incremental loading
@@ -24,28 +25,95 @@ export function CodeViewer({
   filePath,
   onFocus,
   onDirtyChange,
+  onActiveFileChange,
 }: CodeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const contentsRef = useRef<Record<string, string>>({});
+  const savedContentsRef = useRef<Record<string, string>>({});
+  const activeFileRef = useRef(filePath);
+  const lastRequestedFileRef = useRef(filePath);
   const [loading, setLoading] = useState(true);
-  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const savedContentRef = useRef('');
+  const [openFiles, setOpenFiles] = useState<string[]>([filePath]);
+  const [activeFilePath, setActiveFilePath] = useState(filePath);
+  const [dirtyFiles, setDirtyFiles] = useState<Record<string, boolean>>({});
+
+  const syncActiveFilePath = useCallback(
+    (nextFilePath: string) => {
+      activeFileRef.current = nextFilePath;
+      setActiveFilePath(nextFilePath);
+      onActiveFileChange?.(nextFilePath);
+    },
+    [onActiveFileChange],
+  );
 
   // Track dirty state
   const markDirty = useCallback(
-    (isDirty: boolean) => {
-      setDirty(isDirty);
-      onDirtyChange?.(isDirty);
+    (targetPath: string, isDirty: boolean) => {
+      setDirtyFiles((prev) => {
+        if (prev[targetPath] === isDirty) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [targetPath]: isDirty,
+        };
+      });
+
+      if (targetPath === activeFileRef.current) {
+        onDirtyChange?.(isDirty);
+      }
     },
     [onDirtyChange],
   );
 
-  // Initialize editor
+  useEffect(() => {
+    setOpenFiles((prev) => (prev.includes(filePath) ? prev : [...prev, filePath]));
+    syncActiveFilePath(filePath);
+  }, [filePath, syncActiveFilePath]);
+
+  useEffect(() => {
+    const handleSearch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ paneId?: string }>;
+      if (customEvent.detail?.paneId !== paneId || !viewRef.current) {
+        return;
+      }
+
+      viewRef.current.focus();
+      openSearchPanel(viewRef.current);
+    };
+
+    window.addEventListener('turbine:search-focused-pane', handleSearch);
+    return () => window.removeEventListener('turbine:search-focused-pane', handleSearch);
+  }, [paneId]);
+
+  const saveFile = useCallback(async () => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const currentPath = activeFileRef.current;
+    const content = view.state.doc.toString();
+    try {
+      await invoke('write_file', { path: currentPath, content });
+      savedContentsRef.current[currentPath] = content;
+      contentsRef.current[currentPath] = content;
+      markDirty(currentPath, false);
+    } catch (err) {
+      setError(`Save failed: ${err}`);
+    }
+  }, [markDirty]);
+
+  // Initialize editor for the active tab.
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const lang = detectLanguage(filePath);
+    const currentPath = activeFilePath;
+    lastRequestedFileRef.current = currentPath;
+    activeFileRef.current = currentPath;
+
+    const lang = detectLanguage(currentPath);
     const langExtension = getLanguageExtension(lang);
 
     const extensions = [
@@ -56,7 +124,8 @@ export function CodeViewer({
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const currentContent = update.state.doc.toString();
-          markDirty(currentContent !== savedContentRef.current);
+          contentsRef.current[currentPath] = currentContent;
+          markDirty(currentPath, currentContent !== (savedContentsRef.current[currentPath] ?? ''));
         }
       }),
     ];
@@ -66,7 +135,7 @@ export function CodeViewer({
     }
 
     const state = EditorState.create({
-      doc: '',
+      doc: contentsRef.current[currentPath] ?? '',
       extensions,
     });
 
@@ -77,31 +146,70 @@ export function CodeViewer({
 
     viewRef.current = view;
 
-    // Load file content incrementally
-    loadFile(filePath, view, savedContentRef, setLoading, setError);
+    const cachedContent = contentsRef.current[currentPath];
+    if (cachedContent === undefined) {
+      loadFile(currentPath, view, setLoading, setError)
+        .then((content) => {
+          if (lastRequestedFileRef.current !== currentPath) {
+            return;
+          }
+
+          contentsRef.current[currentPath] = content;
+          savedContentsRef.current[currentPath] = content;
+          markDirty(currentPath, false);
+        })
+        .catch(() => {
+          // handled in loadFile
+        });
+    } else {
+      savedContentsRef.current[currentPath] ??= cachedContent;
+      markDirty(currentPath, cachedContent !== (savedContentsRef.current[currentPath] ?? ''));
+      setLoading(false);
+      setError(null);
+    }
 
     // Watch for external changes
     let unwatchUnlisten: UnlistenFn | null = null;
+    let disposed = false;
 
-    invoke('watch_file', { path: filePath }).catch(() => {});
+    invoke('watch_file', { path: currentPath }).catch(() => {});
 
-    listen<{ path: string }>('file_changed', (event) => {
-      if (event.payload.path === filePath) {
-        // Prompt-style: reload content
-        loadFile(filePath, view, savedContentRef, setLoading, setError);
-        markDirty(false);
+    listen<string | { path: string }>('file_changed', (event) => {
+      const changedPath =
+        typeof event.payload === 'string' ? event.payload : event.payload.path;
+
+      if (changedPath === currentPath) {
+        loadFile(currentPath, view, setLoading, setError)
+          .then((content) => {
+            if (lastRequestedFileRef.current !== currentPath) {
+              return;
+            }
+
+            contentsRef.current[currentPath] = content;
+            savedContentsRef.current[currentPath] = content;
+            markDirty(currentPath, false);
+          })
+          .catch(() => {
+            // handled in loadFile
+          });
       }
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unwatchUnlisten = fn;
     });
 
     return () => {
+      disposed = true;
       unwatchUnlisten?.();
-      invoke('unwatch_file', { path: filePath }).catch(() => {});
+      contentsRef.current[currentPath] = view.state.doc.toString();
+      invoke('unwatch_file', { path: currentPath }).catch(() => {});
       view.destroy();
       viewRef.current = null;
     };
-  }, [paneId, filePath, markDirty]);
+  }, [paneId, activeFilePath, markDirty]);
 
   // Save handler (Ctrl+S)
   useEffect(() => {
@@ -121,28 +229,106 @@ export function CodeViewer({
     const container = containerRef.current;
     container?.addEventListener('keydown', handleKeyDown);
     return () => container?.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [saveFile]);
 
-  const saveFile = useCallback(async () => {
-    if (!viewRef.current) return;
-    const content = viewRef.current.state.doc.toString();
-    try {
-      await invoke('write_file', { path: filePath, content });
-      savedContentRef.current = content;
-      markDirty(false);
-    } catch (err) {
-      setError(`Save failed: ${err}`);
-    }
-  }, [filePath, markDirty]);
+  const handleSelectTab = useCallback(
+    (nextFilePath: string) => {
+      if (nextFilePath === activeFileRef.current) {
+        return;
+      }
+
+      if (viewRef.current) {
+        contentsRef.current[activeFileRef.current] = viewRef.current.state.doc.toString();
+      }
+
+      syncActiveFilePath(nextFilePath);
+    },
+    [syncActiveFilePath],
+  );
+
+  const handleCloseTab = useCallback(
+    (closingPath: string) => {
+      setOpenFiles((prev) => {
+        if (prev.length <= 1) {
+          return prev;
+        }
+
+        const index = prev.indexOf(closingPath);
+        if (index === -1) {
+          return prev;
+        }
+
+        const next = prev.filter((path) => path !== closingPath);
+        if (closingPath === activeFileRef.current) {
+          const fallbackPath = next[Math.max(0, index - 1)] ?? next[0];
+          if (fallbackPath) {
+            syncActiveFilePath(fallbackPath);
+          }
+        }
+        return next;
+      });
+    },
+    [syncActiveFilePath],
+  );
+
+  const handleCloseTabMouseDown = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+  }, []);
 
   return (
     <div className="code-viewer" onClick={onFocus}>
       <div className="code-viewer__header">
-        <span className="code-viewer__filename">
-          {filePath.split('/').pop()}
-          {dirty && <span className="code-viewer__dirty-dot" title="Unsaved changes" />}
-        </span>
-        <span className="code-viewer__lang">{detectLanguage(filePath)}</span>
+        <div className="code-viewer__tabs" role="tablist" aria-label="Open files">
+          {openFiles.map((path) => {
+            const isActive = path === activeFilePath;
+            const isDirty = dirtyFiles[path] ?? false;
+            return (
+              <button
+                key={path}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={[
+                  'code-viewer__tab',
+                  isActive ? 'code-viewer__tab--active' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => handleSelectTab(path)}
+              >
+                <span className="code-viewer__tab-label">
+                  {path.split('/').pop()}
+                  {isDirty && <span className="code-viewer__dirty-dot" title="Unsaved changes" />}
+                </span>
+                {openFiles.length > 1 && (
+                  <span
+                    className="code-viewer__tab-close"
+                    role="button"
+                    tabIndex={0}
+                    onMouseDown={handleCloseTabMouseDown}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleCloseTab(path);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleCloseTab(path);
+                      }
+                    }}
+                  >
+                    ×
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="code-viewer__meta">
+          <span className="code-viewer__filename" title={activeFilePath}>
+            {activeFilePath}
+          </span>
+          <span className="code-viewer__lang">{detectLanguage(activeFilePath)}</span>
+        </div>
       </div>
       {loading && (
         <div className="code-viewer__loading">Loading...</div>
@@ -158,10 +344,9 @@ export function CodeViewer({
 async function loadFile(
   filePath: string,
   view: EditorView,
-  savedContentRef: React.RefObject<string>,
   setLoading: (v: boolean) => void,
   setError: (v: string | null) => void,
-) {
+): Promise<string> {
   setLoading(true);
   setError(null);
 
@@ -191,9 +376,10 @@ async function loadFile(
       });
     }
 
-    savedContentRef.current = fullContent;
+    return fullContent;
   } catch (err) {
     setError(`Failed to load file: ${err}`);
+    throw err;
   } finally {
     setLoading(false);
   }

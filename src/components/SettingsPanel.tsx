@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { keybindingManager, DEFAULT_BINDINGS } from '../state/keybindingManager';
-import { getAllThemes, applyTheme } from '../themes/themeEngine';
+import {
+  getAllThemes,
+  applyTheme,
+  loadCustomThemeJson,
+  persistCustomTheme,
+} from '../themes/themeEngine';
 import type { Action } from '../state/keybindingManager';
 import './SettingsPanel.css';
 
-type Section = 'general' | 'terminal' | 'keybindings' | 'updates';
+type Section = 'general' | 'terminal' | 'keybindings';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'keybindings', label: 'Keybindings' },
-  { id: 'updates', label: 'Updates' },
 ];
 
 const ACTION_LABELS: Record<Action, string> = {
@@ -104,7 +108,6 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           {activeSection === 'general' && <GeneralSection />}
           {activeSection === 'terminal' && <TerminalSection />}
           {activeSection === 'keybindings' && <KeybindingsSection />}
-          {activeSection === 'updates' && <UpdatesSection />}
         </div>
       </div>
     </div>
@@ -121,6 +124,7 @@ function GeneralSection() {
   const [agentLaunchDelay, setAgentLaunchDelay] = useState(
     String(settings.agentLaunchDelay),
   );
+  const [themeImportError, setThemeImportError] = useState<string | null>(null);
 
   const handleThemeChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -147,6 +151,28 @@ function GeneralSection() {
     }
   }, [agentLaunchDelay, settings.agentLaunchDelay, saveSettings]);
 
+  const handleThemeImport = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) {
+        return;
+      }
+
+      try {
+        const json = await file.text();
+        const theme = loadCustomThemeJson(json);
+        await persistCustomTheme(theme, json);
+        await saveSettings({ theme: theme.id });
+        applyTheme(theme.id);
+        setThemeImportError(null);
+      } catch (error) {
+        setThemeImportError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [saveSettings],
+  );
+
   return (
     <>
       <h3 className="settings-panel__section-title">General</h3>
@@ -164,6 +190,21 @@ function GeneralSection() {
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">Import Theme JSON</label>
+        <input
+          className="settings-panel__input"
+          type="file"
+          accept=".json,application/json"
+          onChange={handleThemeImport}
+        />
+        {themeImportError && (
+          <div className="settings-panel__helper settings-panel__helper--error">
+            {themeImportError}
+          </div>
+        )}
       </div>
 
       <div className="settings-panel__field">
@@ -323,41 +364,6 @@ function KeybindingsSection() {
       <button className="settings-panel__reset-btn" onClick={handleReset}>
         Reset to defaults
       </button>
-    </>
-  );
-}
-
-/* ---------- Updates Section ---------- */
-
-function UpdatesSection() {
-  const { settings, saveSettings } = useSettingsStore();
-
-  const handleToggle = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      saveSettings({ autoUpdateEnabled: e.target.checked });
-    },
-    [saveSettings],
-  );
-
-  return (
-    <>
-      <h3 className="settings-panel__section-title">Updates</h3>
-
-      <div className="settings-panel__checkbox-field">
-        <input
-          id="auto-update-toggle"
-          className="settings-panel__checkbox"
-          type="checkbox"
-          checked={settings.autoUpdateEnabled}
-          onChange={handleToggle}
-        />
-        <label
-          className="settings-panel__checkbox-label"
-          htmlFor="auto-update-toggle"
-        >
-          Enable automatic updates
-        </label>
-      </div>
     </>
   );
 }

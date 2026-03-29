@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type DragEvent } from 'react';
 import type { LayoutNode, PaneConfig } from '../types';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
+import { MediaViewer } from './MediaViewer';
 import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
@@ -268,9 +269,20 @@ function LeafPane({
           paneId={paneId}
           filePath={pane.workingDirectory}
           onFocus={() => onFocusPane(paneId)}
+          onActiveFileChange={
+            onPaneConfigChange
+              ? (path) => onPaneConfigChange(paneId, { workingDirectory: path })
+              : undefined
+          }
         />
       )}
-      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && (
+      {pane?.type === 'media_viewer' && pane.workingDirectory && (
+        <MediaViewer
+          filePath={pane.workingDirectory}
+          onFocus={() => onFocusPane(paneId)}
+        />
+      )}
+      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && pane.type !== 'media_viewer' && (
         <div className="pane-placeholder">
           {pane.type} — {paneId.slice(0, 8)}
         </div>
@@ -284,19 +296,19 @@ function LeafPane({
         onSplitH={() => onSplitH(paneId)}
         onSplitV={() => onSplitV(paneId)}
         onClose={() => onClosePane(paneId)}
-        autoLaunch={pane?.autoLaunch}
-        startupCommand={pane?.startupCommand}
+        autoLaunch={pane?.type === 'terminal' ? pane.autoLaunch : undefined}
+        startupCommand={pane?.type === 'terminal' ? pane.startupCommand : undefined}
         onAutoLaunchChange={
-          onPaneConfigChange
+          onPaneConfigChange && pane?.type === 'terminal'
             ? (v) => onPaneConfigChange(paneId, { autoLaunch: v })
             : undefined
         }
         onStartupCommandChange={
-          onPaneConfigChange
+          onPaneConfigChange && pane?.type === 'terminal'
             ? (v) => onPaneConfigChange(paneId, { startupCommand: v })
             : undefined
         }
-        processStatus={pane?.type === 'terminal' ? status : undefined}
+        processStatus={pane?.type === 'terminal' ? status : null}
         exitCode={exitCode}
         onRestart={pane?.type === 'terminal' ? restartPane : undefined}
       />

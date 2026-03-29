@@ -3,7 +3,6 @@ pub mod db;
 pub mod file_ops;
 pub mod pty_manager;
 pub mod types;
-pub mod updater;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -45,8 +44,8 @@ pub fn run() {
             commands::delete_workspace,
             commands::save_settings,
             commands::load_settings,
-            commands::save_keybindings,
-            commands::load_keybindings,
+            commands::save_theme,
+            commands::load_themes,
             pty_manager::pty_spawn,
             pty_manager::pty_write,
             pty_manager::pty_resize,
@@ -56,8 +55,6 @@ pub fn run() {
             file_ops::list_workspace_files,
             file_ops::watch_file,
             file_ops::unwatch_file,
-            updater::check_for_updates,
-            updater::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

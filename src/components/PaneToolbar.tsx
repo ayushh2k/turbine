@@ -10,7 +10,7 @@ interface PaneToolbarProps {
   startupCommand?: string | null;
   onAutoLaunchChange?: (autoLaunch: boolean) => void;
   onStartupCommandChange?: (command: string | null) => void;
-  processStatus?: PaneProcessStatus;
+  processStatus?: PaneProcessStatus | null;
   exitCode?: number | null;
   onRestart?: () => void;
 }
@@ -23,7 +23,7 @@ export function PaneToolbar({
   startupCommand,
   onAutoLaunchChange,
   onStartupCommandChange,
-  processStatus = 'running',
+  processStatus = null,
   exitCode,
   onRestart,
 }: PaneToolbarProps) {
@@ -75,15 +75,17 @@ export function PaneToolbar({
               &#9881;
             </button>
           )}
-          <span
-            className={`pane-toolbar__status-dot pane-toolbar__status-dot--${processStatus === 'running' ? 'running' : exitCode === 0 ? 'exited-ok' : 'exited-err'}`}
-            title={
-              processStatus === 'running'
-                ? 'Process running'
-                : `Process exited (code: ${exitCode ?? 'unknown'})`
-            }
-          />
-          {processStatus !== 'running' && onRestart && (
+          {processStatus && (
+            <span
+              className={`pane-toolbar__status-dot pane-toolbar__status-dot--${processStatus === 'running' ? 'running' : exitCode === 0 ? 'exited-ok' : 'exited-err'}`}
+              title={
+                processStatus === 'running'
+                  ? 'Process running'
+                  : `Process exited (code: ${exitCode ?? 'unknown'})`
+              }
+            />
+          )}
+          {processStatus && processStatus !== 'running' && onRestart && (
             <button
               className="pane-toolbar__btn pane-toolbar__btn--restart"
               title={`Restart process (exited with code ${exitCode ?? 'unknown'})`}
