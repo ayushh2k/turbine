@@ -1,0 +1,56 @@
+.pane-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.pane-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.pane-leaf {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pane-border);
+}
+
+.pane-leaf--focused {
+  border-color: var(--pane-border-active);
+}
+
+.pane-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-fg-muted);
+  font-size: 12px;
+}
+
+/* Resize handles */
+.resize-handle {
+  flex-shrink: 0;
+  background: var(--pane-handle-bg);
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.resize-handle--horizontal {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-handle--vertical {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.resize-handle:hover,
+.resize-handle--active {
+  background: var(--pane-handle-hover);
+}

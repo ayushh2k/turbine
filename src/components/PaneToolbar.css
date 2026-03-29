@@ -1,0 +1,91 @@
+.pane-toolbar-trigger {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 28px;
+  z-index: 8;
+}
+
+.pane-toolbar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  background: var(--pane-toolbar-bg);
+  border: 1px solid var(--pane-border);
+  border-radius: 4px;
+  padding: 2px;
+  backdrop-filter: blur(4px);
+}
+
+.pane-toolbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--pane-toolbar-fg);
+  font-size: 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.1s, background 0.1s;
+}
+
+.pane-toolbar__btn:hover {
+  color: var(--pane-toolbar-hover);
+  background: rgba(0, 229, 200, 0.1);
+}
+
+.pane-toolbar__btn--close:hover {
+  color: var(--color-danger);
+  background: rgba(255, 92, 92, 0.1);
+}
+
+.pane-toolbar__btn--active {
+  color: var(--color-accent, #00e5c8);
+  background: rgba(0, 229, 200, 0.15);
+}
+
+.pane-toolbar__config {
+  position: absolute;
+  top: 32px;
+  right: 4px;
+  background: var(--pane-toolbar-bg, #0d2137);
+  border: 1px solid var(--pane-border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 200px;
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pane-toolbar__config-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-fg, #c8dce8);
+  cursor: pointer;
+}
+
+.pane-toolbar__config-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--color-fg, #c8dce8);
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+}
+
+.pane-toolbar__config-input:focus {
+  border-color: var(--color-accent, #00e5c8);
+}

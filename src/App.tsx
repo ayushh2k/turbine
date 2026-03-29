@@ -1,51 +1,341 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } from 'react';
+import { useWorkspaceStore } from './state/workspaceStore';
+import { useSettingsStore } from './state/settingsStore';
+import { keybindingManager } from './state/keybindingManager';
+import { launchAgents } from './state/agentLauncher';
+import { applyTheme, getAllThemes } from './themes/themeEngine';
+import { navigatePane } from './state/layoutEngine';
+import { useBroadcast } from './hooks/useBroadcast';
+import { TabBar } from './components/TabBar';
+import { PaneContainer } from './components/PaneContainer';
+import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
+import { CommandPalette, type PaletteAction } from './components/CommandPalette';
+import { UpdateNotification } from './components/UpdateNotification';
+import {
+  splitHorizontal,
+  splitVertical,
+  closePane,
+  resizePane,
+} from './state/layoutEngine';
+import './App.css';
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showPalette, setShowPalette] = useState(false);
+  const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
+  const { handleContextMenu, menuElement: contextMenuElement } = useWorkspaceContextMenu();
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  const {
+    workspaces,
+    activeWorkspaceId,
+    switchWorkspace,
+    createWorkspace,
+    restoreAll,
+    persistAll,
+  } = useWorkspaceStore();
+
+  const { settings, loadSettings } = useSettingsStore();
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+
+  const { toggleBroadcast } = useBroadcast(focusedPaneId);
+
+  // Startup: restore workspaces, settings, apply theme
+  useEffect(() => {
+    async function init() {
+      await loadSettings();
+      await restoreAll();
+
+      const { workspaces: ws, activeWorkspaceId: awId } = useWorkspaceStore.getState();
+      if (ws.length === 0) {
+        createWorkspace('Workspace 1');
+      }
+
+      // Apply theme
+      const theme = useSettingsStore.getState().settings.theme;
+      applyTheme(theme);
+
+      // Auto-launch agents for the active workspace
+      const active = useWorkspaceStore.getState().workspaces.find(
+        (w) => w.id === (awId ?? useWorkspaceStore.getState().activeWorkspaceId),
+      );
+      if (active) {
+        const errors = await launchAgents(active.panes);
+        if (errors.size > 0) {
+          console.warn('Agent launch errors:', Object.fromEntries(errors));
+        }
+      }
+
+      setLoading(false);
+    }
+    init();
+  }, []);
+
+  // Apply theme when it changes
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
+
+  // Persist on changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      persistAll().catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [workspaces, activeWorkspaceId, persistAll]);
+
+  // Layout operations
+  const handleSplitH = useCallback(
+    (paneId: string) => {
+      if (!activeWorkspace) return;
+      const newLayout = splitHorizontal(activeWorkspace.layout, paneId);
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
+  );
+
+  const handleSplitV = useCallback(
+    (paneId: string) => {
+      if (!activeWorkspace) return;
+      const newLayout = splitVertical(activeWorkspace.layout, paneId);
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
+  );
+
+  const handleClosePane = useCallback(
+    (paneId: string) => {
+      if (!activeWorkspace) return;
+      const newLayout = closePane(activeWorkspace.layout, paneId);
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
+  );
+
+  const handleResize = useCallback(
+    (paneId: string, delta: number) => {
+      if (!activeWorkspace) return;
+      const newLayout = resizePane(activeWorkspace.layout, paneId, delta);
+      useWorkspaceStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+        ),
+      }));
+    },
+    [activeWorkspace, activeWorkspaceId],
+  );
+
+  // Register keybindings
+  useEffect(() => {
+    const km = keybindingManager;
+
+    km.register('newWorkspace', () => createWorkspace());
+    km.register('closePane', () => {
+      if (focusedPaneId) handleClosePane(focusedPaneId);
+    });
+    km.register('commandPalette', () => setShowPalette((v) => !v));
+    km.register('splitHorizontal', () => {
+      if (focusedPaneId) handleSplitH(focusedPaneId);
+    });
+    km.register('splitVertical', () => {
+      if (focusedPaneId) handleSplitV(focusedPaneId);
+    });
+    km.register('toggleBroadcast', toggleBroadcast);
+
+    // Workspace navigation
+    km.register('nextWorkspace', () => {
+      const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
+      const idx = sorted.findIndex((w) => w.id === activeWorkspaceId);
+      if (sorted.length > 0) {
+        switchWorkspace(sorted[(idx + 1) % sorted.length].id);
+      }
+    });
+    km.register('prevWorkspace', () => {
+      const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
+      const idx = sorted.findIndex((w) => w.id === activeWorkspaceId);
+      if (sorted.length > 0) {
+        switchWorkspace(sorted[(idx - 1 + sorted.length) % sorted.length].id);
+      }
+    });
+
+    // Direct workspace access (Ctrl+1-9)
+    const wsNums = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+    for (const n of wsNums) {
+      km.register(`workspace${n}`, () => {
+        const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
+        if (sorted[n - 1]) switchWorkspace(sorted[n - 1].id);
+      });
+    }
+
+    // Directional pane navigation
+    km.register('navUp', () => {
+      if (focusedPaneId && activeWorkspace) {
+        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'up'));
+      }
+    });
+    km.register('navDown', () => {
+      if (focusedPaneId && activeWorkspace) {
+        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'down'));
+      }
+    });
+    km.register('navLeft', () => {
+      if (focusedPaneId && activeWorkspace) {
+        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'left'));
+      }
+    });
+    km.register('navRight', () => {
+      if (focusedPaneId && activeWorkspace) {
+        setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'right'));
+      }
+    });
+
+    km.activate();
+
+    return () => {
+      km.deactivate();
+    };
+  }, [
+    workspaces,
+    activeWorkspaceId,
+    activeWorkspace,
+    focusedPaneId,
+    createWorkspace,
+    switchWorkspace,
+    handleClosePane,
+    handleSplitH,
+    handleSplitV,
+    toggleBroadcast,
+  ]);
+
+  // Command palette actions
+  const paletteActions: PaletteAction[] = useMemo(() => {
+    const actions: PaletteAction[] = [
+      { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', handler: () => createWorkspace() },
+      { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', handler: toggleBroadcast },
+    ];
+
+    // Workspace switching
+    const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
+    for (let i = 0; i < sorted.length; i++) {
+      const ws = sorted[i];
+      actions.push({
+        id: `switch-${ws.id}`,
+        label: `Switch to ${ws.name}`,
+        category: 'Workspace',
+        shortcut: i < 9 ? `Ctrl+${i + 1}` : undefined,
+        handler: () => switchWorkspace(ws.id),
+      });
+    }
+
+    // Pane operations
+    if (focusedPaneId) {
+      actions.push(
+        { id: 'split-h', label: 'Split Horizontal', category: 'Pane', shortcut: 'Ctrl+D', handler: () => handleSplitH(focusedPaneId) },
+        { id: 'split-v', label: 'Split Vertical', category: 'Pane', shortcut: 'Ctrl+Shift+D', handler: () => handleSplitV(focusedPaneId) },
+        { id: 'close-pane', label: 'Close Pane', category: 'Pane', shortcut: 'Ctrl+W', handler: () => handleClosePane(focusedPaneId) },
+      );
+    }
+
+    // Theme selection
+    for (const theme of getAllThemes()) {
+      actions.push({
+        id: `theme-${theme.id}`,
+        label: theme.name,
+        category: 'Theme',
+        handler: () => useSettingsStore.getState().saveSettings({ theme: theme.id }),
+      });
+    }
+
+    return actions;
+  }, [workspaces, focusedPaneId, createWorkspace, switchWorkspace, handleSplitH, handleSplitV, handleClosePane, toggleBroadcast]);
+
+  if (loading) {
+    return (
+      <div className="app">
+        <div className="app__loading">Starting Turbine...</div>
+      </div>
+    );
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <ErrorBoundary>
+      <div className="app">
+        <TabBar onContextMenu={handleContextMenu} />
+        <div className="app__content">
+          {activeWorkspace && (
+            <PaneContainer
+              layout={activeWorkspace.layout}
+              panes={activeWorkspace.panes}
+              focusedPaneId={focusedPaneId}
+              onFocusPane={setFocusedPaneId}
+              onResize={handleResize}
+              onSplitH={handleSplitH}
+              onSplitV={handleSplitV}
+              onClosePane={handleClosePane}
+            />
+          )}
+        </div>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+        {showPalette && (
+          <CommandPalette
+            actions={paletteActions}
+            onClose={() => setShowPalette(false)}
+          />
+        )}
+
+        {contextMenuElement}
+
+        <UpdateNotification />
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    </ErrorBoundary>
   );
+}
+
+// Error Boundary
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="app__error-boundary">
+          <h2>Something went wrong</h2>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => this.setState({ hasError: false, error: null })}>
+            Reload Workspace
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default App;

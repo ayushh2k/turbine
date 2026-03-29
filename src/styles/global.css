@@ -1,0 +1,78 @@
+/* Turbine — Global CSS Custom Properties (Subnautica Theme Defaults) */
+:root {
+  /* Core palette */
+  --color-bg: #0b1929;
+  --color-bg-secondary: #0f2137;
+  --color-fg: #c8dce8;
+  --color-fg-muted: #6b8a9e;
+  --color-accent: #00e5c8;
+  --color-accent-dim: #007a6c;
+  --color-danger: #ff5c5c;
+  --color-warning: #f0c040;
+
+  /* Tab bar */
+  --tab-bar-bg: #081422;
+  --tab-bar-tab-bg: #0f2137;
+  --tab-bar-tab-active-bg: #142d47;
+  --tab-bar-tab-hover-bg: #1a3550;
+  --tab-bar-tab-fg: #c8dce8;
+  --tab-bar-tab-close: #6b8a9e;
+  --tab-bar-tab-close-hover: #ff5c5c;
+  --tab-bar-border: #1a3550;
+
+  /* Pane */
+  --pane-border: #1a3550;
+  --pane-border-active: #00e5c8;
+  --pane-handle-bg: #1a3550;
+  --pane-handle-hover: #00e5c8;
+  --pane-toolbar-bg: rgba(8, 20, 34, 0.85);
+  --pane-toolbar-fg: #6b8a9e;
+  --pane-toolbar-hover: #00e5c8;
+
+  /* Context menu */
+  --ctx-menu-bg: #0f2137;
+  --ctx-menu-fg: #c8dce8;
+  --ctx-menu-hover-bg: #1a3550;
+  --ctx-menu-border: #1a3550;
+
+  /* Search overlay */
+  --search-bg: #0f2137;
+  --search-fg: #c8dce8;
+  --search-border: #1a3550;
+  --search-input-bg: #081422;
+
+  /* Template picker */
+  --picker-bg: #0f2137;
+  --picker-fg: #c8dce8;
+  --picker-hover-bg: #1a3550;
+  --picker-border: #1a3550;
+
+  /* Broadcast indicator */
+  --broadcast-color: #f0c040;
+
+  /* Typography */
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}

@@ -1,0 +1,141 @@
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--tab-bar-bg);
+  border-bottom: 1px solid var(--tab-bar-border);
+  height: 36px;
+  min-height: 36px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.tab-bar__tabs {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  gap: 1px;
+  -webkit-app-region: no-drag;
+}
+
+.tab-bar__tabs::-webkit-scrollbar {
+  height: 2px;
+}
+
+.tab-bar__tabs::-webkit-scrollbar-thumb {
+  background: var(--color-fg-muted);
+  border-radius: 1px;
+}
+
+.tab-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 36px;
+  background: var(--tab-bar-tab-bg);
+  color: var(--tab-bar-tab-fg);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.tab-bar__tab:hover {
+  background: var(--tab-bar-tab-hover-bg);
+}
+
+.tab-bar__tab--active {
+  background: var(--tab-bar-tab-active-bg);
+}
+
+.tab-bar__tab--dragging {
+  opacity: 0.5;
+}
+
+.tab-bar__tab--drag-over {
+  border-left-color: var(--color-accent);
+}
+
+.tab-bar__color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab-bar__tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.tab-bar__broadcast-badge {
+  font-size: 10px;
+  color: var(--broadcast-color);
+}
+
+.tab-bar__close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--tab-bar-tab-close);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.tab-bar__tab:hover .tab-bar__close-btn {
+  opacity: 1;
+}
+
+.tab-bar__close-btn:hover {
+  color: var(--tab-bar-tab-close-hover);
+  background: rgba(255, 92, 92, 0.15);
+}
+
+.tab-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+}
+
+.tab-bar__broadcast-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--broadcast-color);
+  letter-spacing: 0.5px;
+}
+
+.tab-bar__new-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--color-fg-muted);
+  font-size: 18px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab-bar__new-btn:hover {
+  color: var(--color-accent);
+  background: var(--tab-bar-tab-hover-bg);
+}
