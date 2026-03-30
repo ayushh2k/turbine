@@ -16,7 +16,7 @@ pub struct WorkspaceConfig {
 pub struct PaneConfig {
     pub id: String,
     pub workspace_id: String,
-    pub pane_type: String, // "terminal" | "code_viewer" | "media_viewer"
+    pub pane_type: String, // "terminal" | "code_viewer" | "media_viewer" | "task_board"
     pub working_directory: Option<String>,
     pub startup_command: Option<String>,
     pub auto_launch: bool,
@@ -52,4 +52,16 @@ pub struct FileTreeEntry {
     pub path: String,
     pub relative_path: String,
     pub is_dir: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Task {
+    pub id: String,
+    pub project_path: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String, // "todo" | "in_progress" | "review" | "done"
+    pub linked_files_json: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }

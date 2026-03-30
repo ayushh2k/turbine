@@ -30,6 +30,7 @@ interface TerminalPaneProps {
   onSplitH?: () => void;
   onSplitV?: () => void;
   onClosePane?: () => void;
+  onDetachPane?: () => void;
 }
 
 function TerminalPaneInner({
@@ -43,6 +44,7 @@ function TerminalPaneInner({
   onSplitH,
   onSplitV,
   onClosePane,
+  onDetachPane,
 }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -429,7 +431,8 @@ function TerminalPaneInner({
           onSplitH={() => onSplitH?.()}
           onSplitV={() => onSplitV?.()}
           onClosePane={() => onClosePane?.()}
-          hasSelection={!!terminalRef.current?.getSelection()}
+          onDetachPane={() => onDetachPane?.()}
+          hasSelection={terminalRef.current?.hasSelection() ?? false}
         />
       )}
       {processExited && (

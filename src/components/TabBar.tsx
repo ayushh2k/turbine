@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { usePtyStatusStore } from '../hooks/usePtyStatus';
 import './TabBar.css';
 
 interface TabBarProps {
@@ -17,6 +18,8 @@ export function TabBar({ onContextMenu }: TabBarProps) {
     reorderWorkspaces,
     renameWorkspace,
   } = useWorkspaceStore();
+
+  const statuses = usePtyStatusStore((s) => s.statuses);
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -94,6 +97,9 @@ export function TabBar({ onContextMenu }: TabBarProps) {
           const isActive = ws.id === activeWorkspaceId;
           const isDragging = dragIndex === index;
           const isDragOver = dragOverIndex === index;
+          const runningCount = ws.panes.filter(
+            (p) => statuses.get(p.id)?.status === 'running'
+          ).length;
 
           return (
             <div
@@ -153,6 +159,14 @@ export function TabBar({ onContextMenu }: TabBarProps) {
                       aria-label="Current workspace"
                     >
                       Current
+                    </span>
+                  )}
+                  {!isActive && runningCount > 0 && (
+                    <span 
+                      className="tab-bar__tab-badge" 
+                      title={`${runningCount} running process${runningCount > 1 ? 'es' : ''}`}
+                    >
+                      {runningCount}
                     </span>
                   )}
                 </span>

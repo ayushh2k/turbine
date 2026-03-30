@@ -20,7 +20,7 @@ type KeyCombo = string;
 const DEFAULT_BINDINGS: Record<Action, KeyCombo> = {
   newWorkspace: 'Ctrl+T',
   closePane: 'Ctrl+W',
-  commandPalette: 'Ctrl+P',
+  commandPalette: 'Ctrl+K',
   nextWorkspace: 'Ctrl+Tab',
   prevWorkspace: 'Ctrl+Shift+Tab',
   workspace1: 'Ctrl+1', workspace2: 'Ctrl+2', workspace3: 'Ctrl+3',

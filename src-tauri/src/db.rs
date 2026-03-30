@@ -28,7 +28,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS panes (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-            pane_type TEXT NOT NULL CHECK(pane_type IN ('terminal', 'code_viewer', 'media_viewer')),
+            pane_type TEXT NOT NULL CHECK(pane_type IN ('terminal', 'code_viewer', 'media_viewer', 'task_board')),
             working_directory TEXT,
             startup_command TEXT,
             auto_launch INTEGER NOT NULL DEFAULT 0,
@@ -52,6 +52,19 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
             theme_json TEXT NOT NULL,
             is_builtin INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY,
+            project_path TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL CHECK(status IN ('todo', 'in_progress', 'review', 'done')),
+            linked_files_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_path ON tasks(project_path);
         ",
     )
 }

@@ -147,6 +147,21 @@
   transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 
+.tab-bar__tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
 .tab-bar__tab:hover .tab-bar__close-btn,
 .tab-bar__tab--active .tab-bar__close-btn {
   opacity: 1;

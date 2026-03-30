@@ -12,6 +12,7 @@ interface TerminalContextMenuProps {
   onSplitH: () => void;
   onSplitV: () => void;
   onClosePane: () => void;
+  onDetachPane: () => void;
   hasSelection: boolean;
 }
 
@@ -26,6 +27,7 @@ export function TerminalContextMenu({
   onSplitH,
   onSplitV,
   onClosePane,
+  onDetachPane,
   hasSelection,
 }: TerminalContextMenuProps) {
   const handleCopy = useCallback(() => {
@@ -73,6 +75,14 @@ export function TerminalContextMenu({
       label: 'Close Pane  ⌘W',
       action: onClosePane,
       danger: true,
+    },
+    {
+      label: '─',
+      action: () => {},
+    },
+    {
+      label: 'Detach to New Workspace',
+      action: onDetachPane,
     },
   ];
 

@@ -13,6 +13,7 @@ interface PaneToolbarProps {
   processStatus?: PaneProcessStatus | null;
   exitCode?: number | null;
   onRestart?: () => void;
+  onDetach?: () => void;
 }
 
 export function PaneToolbar({
@@ -26,6 +27,7 @@ export function PaneToolbar({
   processStatus = null,
   exitCode,
   onRestart,
+  onDetach,
 }: PaneToolbarProps) {
   const [visible, setVisible] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -73,6 +75,16 @@ export function PaneToolbar({
               onClick={() => setShowConfig((v) => !v)}
             >
               &#9881;
+            </button>
+          )}
+          {onDetach && (
+            <button
+              className="pane-toolbar__btn"
+              title="Detach to new workspace"
+              aria-label="Detach to new workspace"
+              onClick={onDetach}
+            >
+              ⇱
             </button>
           )}
           {processStatus && (

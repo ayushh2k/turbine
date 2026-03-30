@@ -1,8 +1,13 @@
-use crate::types::{AppSettings, CustomThemeRecord, PaneConfig, WorkspaceConfig};
+use crate::types::{AppSettings, CustomThemeRecord, PaneConfig, Task, WorkspaceConfig};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::State;
+
+#[tauri::command]
+pub fn get_cli_args() -> Vec<String> {
+    std::env::args().collect()
+}
 
 type DbState = Mutex<Connection>;
 
@@ -312,3 +317,83 @@ pub fn load_themes(db: State<'_, DbState>) -> Result<Vec<CustomThemeRecord>, Str
 
     Ok(themes)
 }
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn save_task(db: State<'_, DbState>, task: Task) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT INTO tasks (id, project_path, title, description, status, linked_files_json, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))
+         ON CONFLICT(id) DO UPDATE SET
+            project_path = excluded.project_path,
+            title = excluded.title,
+            description = excluded.description,
+            status = excluded.status,
+            linked_files_json = excluded.linked_files_json,
+            updated_at = datetime('now')",
+        rusqlite::params![
+            task.id,
+            task.project_path,
+            task.title,
+            task.description,
+            task.status,
+            task.linked_files_json,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_tasks(db: State<'_, DbState>, project_path: String) -> Result<Vec<Task>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, project_path, title, description, status, linked_files_json, created_at, updated_at 
+             FROM tasks 
+             WHERE project_path = ?1 
+             ORDER BY updated_at DESC"
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![project_path], |row| {
+            Ok(Task {
+                id: row.get::<_, String>(0)?,
+                project_path: row.get::<_, String>(1)?,
+                title: row.get::<_, String>(2)?,
+                description: row.get::<_, Option<String>>(3)?,
+                status: row.get::<_, String>(4)?,
+                linked_files_json: row.get::<_, String>(5)?,
+                created_at: row.get::<_, Option<String>>(6)?,
+                updated_at: row.get::<_, Option<String>>(7)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut tasks = Vec::new();
+    for row in rows {
+        tasks.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(tasks)
+}
+
+#[tauri::command]
+pub fn delete_task(db: State<'_, DbState>, task_id: String) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM tasks WHERE id = ?1",
+        rusqlite::params![task_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+

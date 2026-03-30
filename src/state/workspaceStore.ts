@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { Workspace, PaneConfig, LayoutNode } from '../types';
-import { findLeafIds } from './layoutEngine';
+import { findLeafIds, closePane } from './layoutEngine';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -10,7 +10,7 @@ interface WorkspaceState {
   broadcastTargets: Set<string>;
 
   // Actions
-  createWorkspace: (name?: string) => Workspace;
+  createWorkspace: (name?: string, preset?: import('./layoutEngine').StarterPreset) => Workspace;
   deleteWorkspace: (id: string) => void;
   duplicateWorkspace: (id: string) => Workspace | null;
   renameWorkspace: (id: string, name: string) => void;
@@ -19,6 +19,7 @@ interface WorkspaceState {
   setWorkspaceColor: (id: string, color: string) => void;
   setBroadcastMode: (active: boolean) => void;
   setBroadcastTargets: (targets: Set<string>) => void;
+  detachPane: (workspaceId: string, paneId: string) => void;
   persistAll: () => Promise<void>;
   restoreAll: () => Promise<void>;
 }
@@ -57,10 +58,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   broadcastMode: false,
   broadcastTargets: new Set<string>(),
 
-  createWorkspace: (name?: string) => {
+  createWorkspace: (name?: string, preset?: import('./layoutEngine').StarterPreset) => {
     const { workspaces } = get();
     const workspaceName = name ?? `Workspace ${workspaces.length + 1}`;
-    const workspace = createDefaultWorkspace(workspaceName);
+    
+    let workspace = createDefaultWorkspace(workspaceName);
+    
+    if (preset) {
+      const panes: PaneConfig[] = preset.panes.map(p => ({
+        id: p.id,
+        workspaceId: workspace.id,
+        type: p.type,
+        workingDirectory: '.',
+        startupCommand: null,
+        autoLaunch: false,
+        envVars: {},
+      }));
+      workspace = {
+        ...workspace,
+        layout: preset.layout,
+        panes,
+      };
+    }
+    
     workspace.tabOrder = workspaces.length;
 
     set((state) => ({
@@ -134,6 +154,47 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }));
 
     return duplicate;
+  },
+
+  detachPane: (workspaceId: string, paneId: string) => {
+    const { workspaces } = get();
+    const sourceWs = workspaces.find((w) => w.id === workspaceId);
+    if (!sourceWs) return;
+
+    const paneIndex = sourceWs.panes.findIndex((p) => p.id === paneId);
+    if (paneIndex === -1) return;
+    
+    // Don't detach the last pane
+    if (sourceWs.panes.length <= 1) return;
+
+    const paneConfig = { ...sourceWs.panes[paneIndex] };
+
+    const newWsId = crypto.randomUUID();
+    paneConfig.workspaceId = newWsId;
+
+    const newWorkspace: Workspace = {
+      id: newWsId,
+      name: `Workspace ${workspaces.length + 1}`,
+      tabColor: null,
+      tabOrder: workspaces.length,
+      layout: { type: 'leaf', paneId: paneConfig.id },
+      isActive: false,
+      panes: [paneConfig],
+    };
+
+    set((state) => ({
+      workspaces: [...state.workspaces.map((w) => {
+        if (w.id === workspaceId) {
+          return {
+            ...w,
+            panes: w.panes.filter((p) => p.id !== paneId),
+            layout: closePane(w.layout, paneId),
+          };
+        }
+        return w;
+      }), newWorkspace],
+      activeWorkspaceId: newWsId,
+    }));
   },
 
   renameWorkspace: (id: string, name: string) => {

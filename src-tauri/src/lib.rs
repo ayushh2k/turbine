@@ -39,9 +39,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_cli_args,
             commands::save_workspace,
             commands::load_workspaces,
             commands::delete_workspace,
+            commands::save_task,
+            commands::load_tasks,
+            commands::delete_task,
             commands::save_settings,
             commands::load_settings,
             commands::save_theme,

@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { findLeafIds, movePane } from './state/layoutEngine';
+import { findLeafIds, movePane, createCodeAndConsolePreset, createWebDevPreset } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
 import { useAppStartup } from './hooks/useAppStartup';
@@ -364,6 +364,8 @@ function App() {
   const paletteActions: PaletteAction[] = useMemo(() => {
     const actions: PaletteAction[] = [
       { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', type: 'command', handler: () => createWorkspace() },
+      { id: 'new-workspace-code-console', label: 'New Workspace (Code + Console)', category: 'Workspace', type: 'command', handler: () => createWorkspace('Code & Console', createCodeAndConsolePreset()) },
+      { id: 'new-workspace-web-dev', label: 'New Workspace (Web Dev)', category: 'Workspace', type: 'command', handler: () => createWorkspace('Web Dev', createWebDevPreset()) },
       { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', type: 'command', handler: toggleBroadcast },
       { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', type: 'command', handler: () => setShowSettings(true) },
       { id: 'refresh-project-files', label: 'Refresh Project Files', category: 'File', type: 'command', handler: handleRefreshProjectFiles },
@@ -420,6 +422,32 @@ function App() {
             pane.id = newPaneId;
             pane.type = 'code_viewer';
             pane.workingDirectory = '.';
+            useWorkspaceStore.setState((s) => ({
+              workspaces: s.workspaces.map((w) =>
+                w.id === activeWorkspaceId
+                  ? { ...w, layout: newLayout, panes: [...w.panes, pane] }
+                  : w,
+              ),
+            }));
+          }
+        },
+      });
+
+      actions.push({
+        id: 'open-task-board',
+        label: 'Open Task Board',
+        category: 'Pane',
+        type: 'command',
+        handler: () => {
+          const newLayout = splitHorizontal(activeWorkspace.layout, focusedPaneId);
+          const existingIds = new Set(findLeafIds(activeWorkspace.layout));
+          const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+          const newPaneId = newIds[0];
+          if (newPaneId) {
+            const pane = createDefaultPane(activeWorkspace.id);
+            pane.id = newPaneId;
+            pane.type = 'task_board';
+            pane.workingDirectory = workspaceRoot || '.';
             useWorkspaceStore.setState((s) => ({
               workspaces: s.workspaces.map((w) =>
                 w.id === activeWorkspaceId

@@ -13,7 +13,7 @@ export interface Workspace {
 export interface PaneConfig {
   id: string;
   workspaceId: string;
-  type: "terminal" | "code_viewer" | "media_viewer";
+  type: "terminal" | "code_viewer" | "media_viewer" | "task_board";
   workingDirectory: string;
   startupCommand: string | null;
   autoLaunch: boolean;
@@ -71,6 +71,19 @@ export interface ThemeDef {
   };
 }
 
+// Tasks
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+
+export interface Task {
+  id: string;
+  project_path: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  linked_files_json: string;
+  created_at?: string;
+  updated_at?: string;
+}
 // Command block (OSC 133)
 export interface CommandBlock {
   id: string;

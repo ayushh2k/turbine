@@ -1,4 +1,4 @@
-import type { LayoutNode, PaneTemplate } from '../types';
+import type { LayoutNode, PaneTemplate, PaneConfig } from '../types';
 
 /**
  * Generate a balanced binary tree of splits for the given pane count.
@@ -37,6 +37,61 @@ function buildBalancedTree(
     children: [
       buildBalancedTree(left, nextDirection),
       buildBalancedTree(right, nextDirection),
+    ],
+  };
+}
+
+export interface StarterPreset {
+  layout: LayoutNode;
+  panes: { id: string; type: PaneConfig['type'] }[];
+}
+
+export function createCodeAndConsolePreset(): StarterPreset {
+  const codeId = crypto.randomUUID();
+  const consoleId = crypto.randomUUID();
+  return {
+    layout: {
+      type: 'split',
+      direction: 'horizontal',
+      ratio: 0.6,
+      children: [
+        { type: 'leaf', paneId: codeId },
+        { type: 'leaf', paneId: consoleId },
+      ],
+    },
+    panes: [
+      { id: codeId, type: 'code_viewer' },
+      { id: consoleId, type: 'terminal' },
+    ],
+  };
+}
+
+export function createWebDevPreset(): StarterPreset {
+  const codeId = crypto.randomUUID();
+  const consoleId = crypto.randomUUID();
+  const mediaId = crypto.randomUUID();
+  return {
+    layout: {
+      type: 'split',
+      direction: 'horizontal',
+      ratio: 0.5,
+      children: [
+        { type: 'leaf', paneId: codeId },
+        {
+          type: 'split',
+          direction: 'vertical',
+          ratio: 0.5,
+          children: [
+            { type: 'leaf', paneId: consoleId },
+            { type: 'leaf', paneId: mediaId },
+          ],
+        },
+      ],
+    },
+    panes: [
+      { id: codeId, type: 'code_viewer' },
+      { id: consoleId, type: 'terminal' },
+      { id: mediaId, type: 'media_viewer' },
     ],
   };
 }

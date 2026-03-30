@@ -3,6 +3,7 @@ import type { LayoutNode, PaneConfig } from '../types';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
 import { MediaViewer } from './MediaViewer';
+import { TaskBoard } from './TaskBoard';
 import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
@@ -19,6 +20,7 @@ interface PaneContainerProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
+  onDetachPane?: (paneId: string) => void;
   themeId?: string;
 }
 
@@ -34,6 +36,7 @@ export function PaneContainer({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
+  onDetachPane,
   themeId,
 }: PaneContainerProps) {
   return (
@@ -47,6 +50,7 @@ export function PaneContainer({
         onSplitH={onSplitH}
         onSplitV={onSplitV}
         onClosePane={onClosePane}
+        onDetachPane={onDetachPane}
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
@@ -68,6 +72,7 @@ interface LayoutRendererProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
+  onDetachPane?: (paneId: string) => void;
   themeId?: string;
 }
 
@@ -80,6 +85,7 @@ function LayoutRenderer({
   onSplitH,
   onSplitV,
   onClosePane,
+  onDetachPane,
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
@@ -95,6 +101,7 @@ function LayoutRenderer({
         onSplitH={onSplitH}
         onSplitV={onSplitV}
         onClosePane={onClosePane}
+        onDetachPane={onDetachPane}
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
@@ -126,6 +133,7 @@ function LayoutRenderer({
           onSplitH={onSplitH}
           onSplitV={onSplitV}
           onClosePane={onClosePane}
+          onDetachPane={onDetachPane}
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
@@ -148,6 +156,7 @@ function LayoutRenderer({
           onSplitH={onSplitH}
           onSplitV={onSplitV}
           onClosePane={onClosePane}
+          onDetachPane={onDetachPane}
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
@@ -166,6 +175,7 @@ interface LeafPaneProps {
   onSplitH: (paneId: string) => void;
   onSplitV: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
+  onDetachPane?: (paneId: string) => void;
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
@@ -180,6 +190,7 @@ function LeafPane({
   onSplitH,
   onSplitV,
   onClosePane,
+  onDetachPane,
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
@@ -239,6 +250,7 @@ function LeafPane({
   const handleSplitH = useCallback(() => onSplitH(paneId), [onSplitH, paneId]);
   const handleSplitV = useCallback(() => onSplitV(paneId), [onSplitV, paneId]);
   const handleClosePane = useCallback(() => onClosePane(paneId), [onClosePane, paneId]);
+  const handleDetachPane = useCallback(() => onDetachPane?.(paneId), [onDetachPane, paneId]);
   
   const handleActiveFileChange = useCallback(
     (path: string) => {
@@ -308,6 +320,13 @@ function LeafPane({
           onActiveFileChange={onPaneConfigChange ? handleActiveFileChange : undefined}
         />
       )}
+      {pane?.type === 'task_board' && pane.workingDirectory && (
+        <TaskBoard
+          projectPath={pane.workingDirectory}
+          onFocus={handleFocusPane}
+          onRunTask={() => handleSplitH()}
+        />
+      )}
       {pane?.type === 'media_viewer' && pane.workingDirectory && (
         <MediaViewer
           filePath={pane.workingDirectory}
@@ -328,6 +347,7 @@ function LeafPane({
         onSplitH={handleSplitH}
         onSplitV={handleSplitV}
         onClose={handleClosePane}
+        onDetach={onDetachPane ? handleDetachPane : undefined}
         autoLaunch={pane?.type === 'terminal' ? pane.autoLaunch : undefined}
         startupCommand={pane?.type === 'terminal' ? pane.startupCommand : undefined}
         onAutoLaunchChange={onPaneConfigChange && pane?.type === 'terminal' ? handleAutoLaunchChange : undefined}
