@@ -13,7 +13,7 @@ export interface Workspace {
 export interface PaneConfig {
   id: string;
   workspaceId: string;
-  type: "terminal" | "code_viewer" | "media_viewer" | "task_board";
+  type: "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer";
   workingDirectory: string;
   startupCommand: string | null;
   autoLaunch: boolean;
@@ -83,6 +83,16 @@ export interface Task {
   linked_files_json: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// Agent Presets
+export type AgentRole = 'Orchestrator' | 'Builder' | 'Reviewer' | 'Support';
+
+export interface AgentPreset {
+  id: string;
+  name: string;
+  role: AgentRole;
+  cli_command_template: string;
 }
 // Command block (OSC 133)
 export interface CommandBlock {

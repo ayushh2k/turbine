@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import type { LayoutNode, PaneConfig } from '../types';
+import type { LayoutNode, PaneConfig, Task, AgentPreset } from '../types';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
 import { MediaViewer } from './MediaViewer';
 import { TaskBoard } from './TaskBoard';
+import { DiffViewer } from './DiffViewer';
 import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
@@ -20,6 +21,7 @@ interface PaneContainerProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
+  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
   onDetachPane?: (paneId: string) => void;
   themeId?: string;
 }
@@ -36,6 +38,7 @@ export function PaneContainer({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
+  onRunAgentTask,
   onDetachPane,
   themeId,
 }: PaneContainerProps) {
@@ -54,6 +57,7 @@ export function PaneContainer({
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
+        onRunAgentTask={onRunAgentTask}
         themeId={themeId}
       />
     </div>
@@ -72,6 +76,7 @@ interface LayoutRendererProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
+  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
   onDetachPane?: (paneId: string) => void;
   themeId?: string;
 }
@@ -89,6 +94,7 @@ function LayoutRenderer({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
+  onRunAgentTask,
   themeId,
 }: LayoutRendererProps) {
   if (node.type === 'leaf') {
@@ -105,6 +111,7 @@ function LayoutRenderer({
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
+        onRunAgentTask={onRunAgentTask}
         themeId={themeId}
       />
     );
@@ -137,6 +144,7 @@ function LayoutRenderer({
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
+          onRunAgentTask={onRunAgentTask}
           themeId={themeId}
         />
       </div>
@@ -160,6 +168,7 @@ function LayoutRenderer({
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
+          onRunAgentTask={onRunAgentTask}
           themeId={themeId}
         />
       </div>
@@ -179,6 +188,7 @@ interface LeafPaneProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
+  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
   themeId?: string;
 }
 
@@ -194,6 +204,7 @@ function LeafPane({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
+  onRunAgentTask,
   themeId,
 }: LeafPaneProps) {
   const pane = panes.find((p) => p.id === paneId);
@@ -324,7 +335,17 @@ function LeafPane({
         <TaskBoard
           projectPath={pane.workingDirectory}
           onFocus={handleFocusPane}
-          onRunTask={() => handleSplitH()}
+          onRunTask={
+            onRunAgentTask
+              ? (task, preset) => {
+                  if (preset) {
+                    onRunAgentTask(paneId, task, preset);
+                  } else {
+                    handleSplitH();
+                  }
+                }
+              : undefined
+          }
         />
       )}
       {pane?.type === 'media_viewer' && pane.workingDirectory && (
@@ -333,7 +354,13 @@ function LeafPane({
           onFocus={() => onFocusPane(paneId)}
         />
       )}
-      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && pane.type !== 'media_viewer' && (
+      {pane?.type === 'diff_viewer' && pane.workingDirectory && (
+        <DiffViewer
+          projectPath={pane.workingDirectory}
+          onFocus={() => onFocusPane(paneId)}
+        />
+      )}
+      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && pane.type !== 'media_viewer' && pane.type !== 'diff_viewer' && (
         <div className="pane-placeholder">
           {pane.type} — {paneId.slice(0, 8)}
         </div>

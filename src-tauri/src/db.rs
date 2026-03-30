@@ -65,6 +65,19 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_tasks_project_path ON tasks(project_path);
+
+        CREATE TABLE IF NOT EXISTS agent_presets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('Orchestrator', 'Builder', 'Reviewer', 'Support')),
+            cli_command_template TEXT NOT NULL
+        );
+
+        INSERT OR IGNORE INTO agent_presets (id, name, role, cli_command_template) VALUES 
+        ('default_codex', 'Codex Builder', 'Builder', 'codex \"Solve task: {{task.title}}. {{task.description}}\"'),
+        ('default_claude', 'Claude Orchestrator', 'Orchestrator', 'claude \"Plan and execute: {{task.title}}. Breakdown: {{task.description}}\"'),
+        ('default_gemini', 'Gemini Reviewer', 'Reviewer', 'gemini \"Review these changes for task: {{task.title}}\"'),
+        ('default_kiro', 'Kiro CLI Support', 'Support', 'kiro run \"{{task.title}}\" --context \"{{task.description}}\"');
         ",
     )
 }

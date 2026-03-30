@@ -65,3 +65,11 @@ pub struct Task {
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AgentPreset {
+    pub id: String,
+    pub name: String,
+    pub role: String, // "Orchestrator" | "Builder" | "Reviewer" | "Support"
+    pub cli_command_template: String,
+}

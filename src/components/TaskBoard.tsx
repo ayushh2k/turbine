@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTaskStore } from '../state/taskStore';
-import type { TaskStatus } from '../types';
+import { useAgentStore } from '../state/agentStore';
+import type { Task, TaskStatus, AgentPreset } from '../types';
 import './TaskBoard.css';
 
 interface TaskBoardProps {
   projectPath: string;
   onFocus?: () => void;
-  onRunTask?: (taskId: string) => void;
+  onRunTask?: (task: Task, preset?: AgentPreset) => void;
 }
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
@@ -24,12 +25,17 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
   const updateTask = useTaskStore((s) => s.updateTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
 
+  const presets = useAgentStore((s) => s.presets);
+  const loadPresets = useAgentStore((s) => s.loadPresets);
+
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+  const [activeRunTaskId, setActiveRunTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadTasks(projectPath);
-  }, [projectPath, loadTasks]);
+    void loadPresets();
+  }, [projectPath, loadTasks, loadPresets]);
 
   const handleCreate = useCallback(
     (e: React.FormEvent) => {
@@ -124,8 +130,8 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
                     <div className="task-board__card-actions">
                       {onRunTask && (
                         <button
-                          className="task-board__run-btn"
-                          onClick={() => onRunTask(task.id)}
+                          className={`task-board__run-btn ${activeRunTaskId === task.id ? 'active' : ''}`}
+                          onClick={() => setActiveRunTaskId(activeRunTaskId === task.id ? null : task.id)}
                           title="Run task in pane"
                         >
                           ▶ Run
@@ -139,6 +145,26 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
                         ×
                       </button>
                     </div>
+                    {activeRunTaskId === task.id && presets.length > 0 && (
+                      <div className="task-board__agent-selector">
+                        <span className="task-board__agent-label">Select Agent:</span>
+                        <div className="task-board__agent-list">
+                          {presets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              className="task-board__agent-btn"
+                              onClick={() => {
+                                setActiveRunTaskId(null);
+                                onRunTask?.(task, preset);
+                              }}
+                            >
+                              <span className="task-board__agent-role">{preset.role}</span>
+                              <span className="task-board__agent-name">{preset.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

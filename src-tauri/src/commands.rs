@@ -397,3 +397,74 @@ pub fn delete_task(db: State<'_, DbState>, task_id: String) -> Result<(), String
     Ok(())
 }
 
+use crate::types::AgentPreset;
+
+#[tauri::command]
+pub fn save_agent_preset(db: State<'_, DbState>, preset: AgentPreset) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO agent_presets (id, name, role, cli_command_template)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            role = excluded.role,
+            cli_command_template = excluded.cli_command_template",
+        rusqlite::params![preset.id, preset.name, preset.role, preset.cli_command_template],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_agent_presets(db: State<'_, DbState>) -> Result<Vec<AgentPreset>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, name, role, cli_command_template FROM agent_presets ORDER BY name ASC")
+        .map_err(|e| e.to_string())?;
+
+    let presets_iter = stmt
+        .query_map([], |row| {
+            Ok(AgentPreset {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                role: row.get(2)?,
+                cli_command_template: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut presets = Vec::new();
+    for row in presets_iter {
+        presets.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(presets)
+}
+
+#[tauri::command]
+pub fn delete_agent_preset(db: State<'_, DbState>, preset_id: String) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM agent_presets WHERE id = ?1",
+        rusqlite::params![preset_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_git_diff(path: String) -> Result<String, String> {
+    use std::process::Command;
+    let output = Command::new("git")
+        .current_dir(&path)
+        .arg("diff")
+        .output()
+        .map_err(|e| format!("Failed to execute git diff: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Git error: {}", stderr));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}

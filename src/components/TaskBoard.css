@@ -194,3 +194,55 @@
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
+
+.task-board__agent-selector {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.task-board__agent-label {
+  display: block;
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.task-board__agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-board__agent-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  color: var(--color-fg);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.task-board__agent-btn:hover {
+  background: rgba(0, 229, 200, 0.1);
+  border-color: var(--color-accent);
+}
+
+.task-board__agent-role {
+  font-size: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: var(--color-fg-muted);
+}
+
+.task-board__agent-name {
+  font-weight: 500;
+}

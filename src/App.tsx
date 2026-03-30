@@ -16,7 +16,7 @@ import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SettingsPanel } from './components/SettingsPanel';
-import type { FileTreeEntry, PaneTemplate } from './types';
+import type { FileTreeEntry, PaneTemplate, Task, AgentPreset } from './types';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
 import {
@@ -218,6 +218,45 @@ function App() {
       }));
     },
     [activeWorkspace, activeWorkspaceId],
+  );
+
+  // Execute an agent preset from a Task board
+  const handleRunAgentTask = useCallback(
+    (sourcePaneId: string, task: Task, preset: AgentPreset) => {
+      if (!activeWorkspace) return;
+      
+      const newLayout = splitHorizontal(activeWorkspace.layout, sourcePaneId);
+      const existingIds = new Set(findLeafIds(activeWorkspace.layout));
+      const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+      const newPaneId = newIds[0];
+
+      if (newPaneId) {
+        let command = preset.cli_command_template;
+        command = command.replace(/\{\{\s*task\.title\s*\}\}/g, task.title);
+        command = command.replace(/\{\{\s*task\.description\s*\}\}/g, task.description || '');
+
+        const pane = createDefaultPane(activeWorkspace.id);
+        pane.id = newPaneId;
+        pane.type = 'terminal';
+        pane.startupCommand = command;
+        pane.autoLaunch = true;
+        pane.workingDirectory = workspaceRoot || '.';
+        
+        useWorkspaceStore.setState((state) => ({
+          workspaces: state.workspaces.map((ws) =>
+            ws.id === activeWorkspace.id
+              ? {
+                  ...ws,
+                  layout: newLayout,
+                  panes: [...ws.panes, pane],
+                }
+              : ws,
+          ),
+        }));
+        setFocusedPaneId(newPaneId);
+      }
+    },
+    [activeWorkspace, workspaceRoot],
   );
 
   // Update individual pane config (auto-launch, startup command)
@@ -458,6 +497,32 @@ function App() {
           }
         },
       });
+
+      actions.push({
+        id: 'open-diff-viewer',
+        label: 'Review Agent Changes (Show Diffs)',
+        category: 'Pane',
+        type: 'command',
+        handler: () => {
+          const newLayout = splitHorizontal(activeWorkspace.layout, focusedPaneId);
+          const existingIds = new Set(findLeafIds(activeWorkspace.layout));
+          const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+          const newPaneId = newIds[0];
+          if (newPaneId) {
+            const pane = createDefaultPane(activeWorkspace.id);
+            pane.id = newPaneId;
+            pane.type = 'diff_viewer';
+            pane.workingDirectory = workspaceRoot || '.';
+            useWorkspaceStore.setState((s) => ({
+              workspaces: s.workspaces.map((w) =>
+                w.id === activeWorkspaceId
+                  ? { ...w, layout: newLayout, panes: [...w.panes, pane] }
+                  : w,
+              ),
+            }));
+          }
+        },
+      });
     }
 
     // Theme selection
@@ -518,6 +583,7 @@ function App() {
                   broadcastWrite={workspace.id === activeWorkspaceId ? activeBroadcastWrite : undefined}
                   onPaneConfigChange={handlePaneConfigChange}
                   onMovePane={handleMovePane}
+                  onRunAgentTask={workspace.id === activeWorkspaceId ? handleRunAgentTask : undefined}
                   themeId={settings.theme}
                 />
               </div>
