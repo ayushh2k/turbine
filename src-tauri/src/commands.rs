@@ -397,7 +397,7 @@ pub fn delete_task(db: State<'_, DbState>, task_id: String) -> Result<(), String
     Ok(())
 }
 
-use crate::types::AgentPreset;
+use crate::types::{AgentPreset, SwarmRun, MailboxMessage};
 
 #[tauri::command]
 pub fn save_agent_preset(db: State<'_, DbState>, preset: AgentPreset) -> Result<(), String> {
@@ -467,4 +467,88 @@ pub fn get_git_diff(path: String) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+pub fn save_swarm_run(db: State<'_, DbState>, run: SwarmRun) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO swarm_runs (id, task_id, project_path, status, current_role, started_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status,
+            current_role = excluded.current_role,
+            updated_at = datetime('now')",
+        rusqlite::params![run.id, run.task_id, run.project_path, run.status, run.current_role, run.started_at, run.updated_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_swarm_runs(db: State<'_, DbState>, project_path: String) -> Result<Vec<SwarmRun>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, task_id, project_path, status, current_role, started_at, updated_at FROM swarm_runs WHERE project_path = ?1 ORDER BY started_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let runs_iter = stmt
+        .query_map(rusqlite::params![project_path], |row| {
+            Ok(SwarmRun {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                project_path: row.get(2)?,
+                status: row.get(3)?,
+                current_role: row.get(4)?,
+                started_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut runs = Vec::new();
+    for row in runs_iter {
+        runs.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(runs)
+}
+
+#[tauri::command]
+pub fn save_mailbox_message(db: State<'_, DbState>, message: MailboxMessage) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO mailbox_messages (id, swarm_run_id, sender_role, content, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![message.id, message.swarm_run_id, message.sender_role, message.content, message.created_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_mailbox_messages(db: State<'_, DbState>, swarm_run_id: String) -> Result<Vec<MailboxMessage>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, swarm_run_id, sender_role, content, created_at FROM mailbox_messages WHERE swarm_run_id = ?1 ORDER BY created_at ASC")
+        .map_err(|e| e.to_string())?;
+
+    let messages_iter = stmt
+        .query_map(rusqlite::params![swarm_run_id], |row| {
+            Ok(MailboxMessage {
+                id: row.get(0)?,
+                swarm_run_id: row.get(1)?,
+                sender_role: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut messages = Vec::new();
+    for row in messages_iter {
+        messages.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(messages)
 }

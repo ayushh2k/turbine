@@ -73,3 +73,23 @@ pub struct AgentPreset {
     pub role: String, // "Orchestrator" | "Builder" | "Reviewer" | "Support"
     pub cli_command_template: String,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SwarmRun {
+    pub id: String,
+    pub task_id: String,
+    pub project_path: String,
+    pub status: String, // "Initializing" | "Running" | "Reviewing" | "Completed" | "Failed"
+    pub current_role: Option<String>,
+    pub started_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MailboxMessage {
+    pub id: String,
+    pub swarm_run_id: String,
+    pub sender_role: String,
+    pub content: String,
+    pub created_at: Option<String>,
+}

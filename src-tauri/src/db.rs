@@ -78,6 +78,24 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         ('default_claude', 'Claude Orchestrator', 'Orchestrator', 'claude \"Plan and execute: {{task.title}}. Breakdown: {{task.description}}\"'),
         ('default_gemini', 'Gemini Reviewer', 'Reviewer', 'gemini \"Review these changes for task: {{task.title}}\"'),
         ('default_kiro', 'Kiro CLI Support', 'Support', 'kiro run \"{{task.title}}\" --context \"{{task.description}}\"');
+
+        CREATE TABLE IF NOT EXISTS swarm_runs (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            project_path TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('Initializing', 'Running', 'Reviewing', 'Completed', 'Failed')),
+            current_role TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS mailbox_messages (
+            id TEXT PRIMARY KEY,
+            swarm_run_id TEXT NOT NULL REFERENCES swarm_runs(id) ON DELETE CASCADE,
+            sender_role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         ",
     )
 }
