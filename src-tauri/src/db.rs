@@ -28,7 +28,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS panes (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-            pane_type TEXT NOT NULL CHECK(pane_type IN ('terminal', 'code_viewer', 'media_viewer', 'task_board')),
+            pane_type TEXT NOT NULL CHECK(pane_type IN ('home', 'terminal', 'code_viewer', 'media_viewer', 'task_board', 'diff_viewer', 'swarm_panel')),
             working_directory TEXT,
             startup_command TEXT,
             auto_launch INTEGER NOT NULL DEFAULT 0,

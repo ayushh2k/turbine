@@ -13,7 +13,7 @@ export interface Workspace {
 export interface PaneConfig {
   id: string;
   workspaceId: string;
-  type: "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer";
+  type: "home" | "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer" | "swarm_panel";
   workingDirectory: string;
   startupCommand: string | null;
   autoLaunch: boolean;
@@ -94,6 +94,27 @@ export interface AgentPreset {
   role: AgentRole;
   cli_command_template: string;
 }
+// Swarm orchestration
+export type SwarmStatus = 'Initializing' | 'Running' | 'Reviewing' | 'Completed' | 'Failed';
+
+export interface SwarmRun {
+  id: string;
+  task_id: string;
+  project_path: string;
+  status: SwarmStatus;
+  current_role: string | null;
+  started_at: string | null;
+  updated_at: string | null;
+}
+
+export interface MailboxMessage {
+  id: string;
+  swarm_run_id: string;
+  sender_role: string;
+  content: string;
+  created_at: string | null;
+}
+
 // Command block (OSC 133)
 export interface CommandBlock {
   id: string;

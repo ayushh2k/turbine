@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTaskStore } from '../state/taskStore';
 import { useAgentStore } from '../state/agentStore';
+import { useSwarmStore } from '../state/swarmStore';
 import type { Task, TaskStatus, AgentPreset } from '../types';
 import './TaskBoard.css';
 
@@ -27,6 +28,7 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
 
   const presets = useAgentStore((s) => s.presets);
   const loadPresets = useAgentStore((s) => s.loadPresets);
+  const startSwarmRun = useSwarmStore((s) => s.startRun);
 
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
@@ -155,6 +157,10 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
                               className="task-board__agent-btn"
                               onClick={() => {
                                 setActiveRunTaskId(null);
+                                if (task.status === 'todo') {
+                                  void updateTask({ ...task, status: 'in_progress' });
+                                }
+                                void startSwarmRun(task, projectPath);
                                 onRunTask?.(task, preset);
                               }}
                             >

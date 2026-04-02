@@ -38,7 +38,15 @@ function createDefaultPane(workspaceId: string): PaneConfig {
 
 function createDefaultWorkspace(name: string): Workspace {
   const id = crypto.randomUUID();
-  const pane = createDefaultPane(id);
+  const pane: PaneConfig = {
+    id: crypto.randomUUID(),
+    workspaceId: id,
+    type: 'home',
+    workingDirectory: '.',
+    startupCommand: null,
+    autoLaunch: false,
+    envVars: {},
+  };
   const layout: LayoutNode = { type: 'leaf', paneId: pane.id };
 
   return {

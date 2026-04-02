@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import type { LayoutNode, PaneConfig, Task, AgentPreset } from '../types';
+import { HomeScreen } from './HomeScreen';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
 import { MediaViewer } from './MediaViewer';
 import { TaskBoard } from './TaskBoard';
 import { DiffViewer } from './DiffViewer';
+import { SwarmPanel } from './SwarmPanel';
 import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
@@ -23,6 +25,7 @@ interface PaneContainerProps {
   onMovePane?: (fromId: string, toId: string) => void;
   onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
   onDetachPane?: (paneId: string) => void;
+  onOpenPalette?: () => void;
   themeId?: string;
 }
 
@@ -40,6 +43,7 @@ export function PaneContainer({
   onMovePane,
   onRunAgentTask,
   onDetachPane,
+  onOpenPalette,
   themeId,
 }: PaneContainerProps) {
   return (
@@ -58,6 +62,7 @@ export function PaneContainer({
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
         onRunAgentTask={onRunAgentTask}
+        onOpenPalette={onOpenPalette}
         themeId={themeId}
       />
     </div>
@@ -78,6 +83,7 @@ interface LayoutRendererProps {
   onMovePane?: (fromId: string, toId: string) => void;
   onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
   onDetachPane?: (paneId: string) => void;
+  onOpenPalette?: () => void;
   themeId?: string;
 }
 
@@ -95,6 +101,7 @@ function LayoutRenderer({
   onPaneConfigChange,
   onMovePane,
   onRunAgentTask,
+  onOpenPalette,
   themeId,
 }: LayoutRendererProps) {
   if (node.type === 'leaf') {
@@ -112,6 +119,7 @@ function LayoutRenderer({
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
         onRunAgentTask={onRunAgentTask}
+        onOpenPalette={onOpenPalette}
         themeId={themeId}
       />
     );
@@ -145,6 +153,7 @@ function LayoutRenderer({
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
           onRunAgentTask={onRunAgentTask}
+          onOpenPalette={onOpenPalette}
           themeId={themeId}
         />
       </div>
@@ -169,6 +178,7 @@ function LayoutRenderer({
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
           onRunAgentTask={onRunAgentTask}
+          onOpenPalette={onOpenPalette}
           themeId={themeId}
         />
       </div>
@@ -189,6 +199,7 @@ interface LeafPaneProps {
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
   onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
+  onOpenPalette?: () => void;
   themeId?: string;
 }
 
@@ -205,6 +216,7 @@ function LeafPane({
   onPaneConfigChange,
   onMovePane,
   onRunAgentTask,
+  onOpenPalette,
   themeId,
 }: LeafPaneProps) {
   const pane = panes.find((p) => p.id === paneId);
@@ -310,6 +322,14 @@ function LeafPane({
       onDrop={handleDrop}
       onDragEnd={handleDragEnd}
     >
+      {pane?.type === 'home' && (
+        <HomeScreen
+          paneId={paneId}
+          workspaceId={pane.workspaceId}
+          onFocus={handleFocusPane}
+          onOpenPalette={onOpenPalette}
+        />
+      )}
       {pane?.type === 'terminal' && (
         <TerminalPane
           paneId={paneId}
@@ -360,17 +380,18 @@ function LeafPane({
           onFocus={() => onFocusPane(paneId)}
         />
       )}
-      {pane && pane.type !== 'terminal' && pane.type !== 'code_viewer' && pane.type !== 'media_viewer' && pane.type !== 'diff_viewer' && (
-        <div className="pane-placeholder">
-          {pane.type} — {paneId.slice(0, 8)}
-        </div>
+      {pane?.type === 'swarm_panel' && pane.workingDirectory && (
+        <SwarmPanel
+          projectPath={pane.workingDirectory}
+          onFocus={handleFocusPane}
+        />
       )}
       {!pane && (
         <div className="pane-placeholder">
           Pane {paneId.slice(0, 8)}
         </div>
       )}
-      <PaneToolbar
+      {pane?.type !== 'home' && <PaneToolbar
         onSplitH={handleSplitH}
         onSplitV={handleSplitV}
         onClose={handleClosePane}
@@ -382,7 +403,7 @@ function LeafPane({
         processStatus={pane?.type === 'terminal' ? status : null}
         exitCode={exitCode}
         onRestart={pane?.type === 'terminal' ? restartPane : undefined}
-      />
+      />}
     </div>
   );
 }

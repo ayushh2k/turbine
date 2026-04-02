@@ -37,7 +37,9 @@ export function useWorkspaceKeybindings({
   useEffect(() => {
     const km = keybindingManager;
 
-    km.register('newWorkspace', () => createWorkspace());
+    km.register('newWorkspace', () => {
+      void import('../utils/openWorkspaceFolder').then((m) => m.openWorkspaceFolder());
+    });
     km.register('closePane', () => {
       if (focusedPaneId) {
         handleClosePane(focusedPaneId);

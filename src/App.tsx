@@ -12,13 +12,13 @@ import { useWorkspaceKeybindings } from './hooks/useWorkspaceKeybindings';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
 import { FileBrowser } from './components/FileBrowser';
-import { TemplatePicker } from './components/TemplatePicker';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SettingsPanel } from './components/SettingsPanel';
 import type { FileTreeEntry, PaneTemplate, Task, AgentPreset } from './types';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
+import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
 import {
   applyTemplate,
   splitHorizontal,
@@ -156,6 +156,10 @@ function App() {
             : w,
         ),
       }));
+      // Auto-focus the new pane (Hyprland-style)
+      if (newLeafIds.length > 0) {
+        setFocusedPaneId(newLeafIds[0]);
+      }
     },
     [activeWorkspace, activeWorkspaceId],
   );
@@ -174,16 +178,20 @@ function App() {
     (paneId: string) => {
       if (!activeWorkspace || !activeWorkspaceId) return;
       const newLayout = closePane(activeWorkspace.layout, paneId);
-      const remainingIds = new Set(findLeafIds(newLayout));
+      const remainingIds = findLeafIds(newLayout);
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
           w.id === activeWorkspaceId
-            ? { ...w, layout: newLayout, panes: w.panes.filter((p) => remainingIds.has(p.id)) }
+            ? { ...w, layout: newLayout, panes: w.panes.filter((p) => remainingIds.includes(p.id)) }
             : w,
         ),
       }));
+      // Auto-focus the nearest remaining pane
+      if (paneId === focusedPaneId && remainingIds.length > 0) {
+        setFocusedPaneId(remainingIds[0]);
+      }
     },
-    [activeWorkspace, activeWorkspaceId],
+    [activeWorkspace, activeWorkspaceId, focusedPaneId],
   );
 
   const handleResize = useCallback(
@@ -402,7 +410,7 @@ function App() {
   // Command palette actions
   const paletteActions: PaletteAction[] = useMemo(() => {
     const actions: PaletteAction[] = [
-      { id: 'new-workspace', label: 'New Workspace', category: 'Workspace', shortcut: 'Ctrl+T', type: 'command', handler: () => createWorkspace() },
+      { id: 'new-workspace', label: 'Open Folder as Workspace', category: 'Workspace', shortcut: 'Ctrl+T', type: 'command', handler: () => void openWorkspaceFolder() },
       { id: 'new-workspace-code-console', label: 'New Workspace (Code + Console)', category: 'Workspace', type: 'command', handler: () => createWorkspace('Code & Console', createCodeAndConsolePreset()) },
       { id: 'new-workspace-web-dev', label: 'New Workspace (Web Dev)', category: 'Workspace', type: 'command', handler: () => createWorkspace('Web Dev', createWebDevPreset()) },
       { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', type: 'command', handler: toggleBroadcast },
@@ -499,6 +507,32 @@ function App() {
       });
 
       actions.push({
+        id: 'open-swarm-panel',
+        label: 'Open Swarm Panel',
+        category: 'Pane',
+        type: 'command',
+        handler: () => {
+          const newLayout = splitHorizontal(activeWorkspace.layout, focusedPaneId);
+          const existingIds = new Set(findLeafIds(activeWorkspace.layout));
+          const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
+          const newPaneId = newIds[0];
+          if (newPaneId) {
+            const pane = createDefaultPane(activeWorkspace.id);
+            pane.id = newPaneId;
+            pane.type = 'swarm_panel';
+            pane.workingDirectory = workspaceRoot || '.';
+            useWorkspaceStore.setState((s) => ({
+              workspaces: s.workspaces.map((w) =>
+                w.id === activeWorkspaceId
+                  ? { ...w, layout: newLayout, panes: [...w.panes, pane] }
+                  : w,
+              ),
+            }));
+          }
+        },
+      });
+
+      actions.push({
         id: 'open-diff-viewer',
         label: 'Review Agent Changes (Show Diffs)',
         category: 'Pane',
@@ -551,8 +585,7 @@ function App() {
     <ErrorBoundary>
       <div className="app">
         <div className="app__header">
-          <TabBar onContextMenu={handleContextMenu} />
-          <TemplatePicker onSelect={handleApplyTemplate} />
+          <TabBar onContextMenu={handleContextMenu} onApplyTemplate={handleApplyTemplate} />
         </div>
         <div className="app__content">
           <FileBrowser
@@ -584,6 +617,7 @@ function App() {
                   onPaneConfigChange={handlePaneConfigChange}
                   onMovePane={handleMovePane}
                   onRunAgentTask={workspace.id === activeWorkspaceId ? handleRunAgentTask : undefined}
+                  onOpenPalette={() => setShowPalette(true)}
                   themeId={settings.theme}
                 />
               </div>

@@ -4,9 +4,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 12%),
-    var(--color-bg);
+  background: var(--color-bg);
 }
 
 .pane-split {
@@ -20,24 +18,21 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(16, 42, 64, 0.9);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: border-color 0.15s;
 }
 
 .pane-leaf--focused {
-  border-color: var(--pane-border-active);
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 229, 200, 0.08),
-    0 0 0 1px rgba(0, 229, 200, 0.14);
+  border-color: rgba(0, 229, 200, 0.25);
 }
 
 .pane-leaf--drag-over {
-  outline: 2px dashed var(--color-accent);
-  outline-offset: -2px;
+  border-color: var(--color-accent);
+  background: rgba(0, 229, 200, 0.02);
 }
 
 .pane-leaf--dragging {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 .pane-placeholder {
@@ -49,25 +44,47 @@
   font-size: 12px;
 }
 
-/* Resize handles */
+/* Resize handles — thin and subtle, expand on hover */
 .resize-handle {
   flex-shrink: 0;
-  background: var(--pane-handle-bg);
+  background: transparent;
   transition: background 0.15s;
   z-index: 5;
+  position: relative;
 }
 
 .resize-handle--horizontal {
-  width: 4px;
+  width: 1px;
   cursor: col-resize;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .resize-handle--vertical {
-  height: 4px;
+  height: 1px;
   cursor: row-resize;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Expand hit area with pseudo-element */
+.resize-handle--horizontal::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+}
+
+.resize-handle--vertical::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 7px;
 }
 
 .resize-handle:hover,
 .resize-handle--active {
-  background: var(--pane-handle-hover);
+  background: var(--color-accent);
 }

@@ -16,7 +16,7 @@ pub struct WorkspaceConfig {
 pub struct PaneConfig {
     pub id: String,
     pub workspace_id: String,
-    pub pane_type: String, // "terminal" | "code_viewer" | "media_viewer" | "task_board"
+    pub pane_type: String, // "home" | "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer" | "swarm_panel"
     pub working_directory: Option<String>,
     pub startup_command: Option<String>,
     pub auto_launch: bool,

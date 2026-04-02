@@ -1,19 +1,23 @@
 import { useState, useRef, useCallback } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { usePtyStatusStore } from '../hooks/usePtyStatus';
+import { openWorkspaceFolder } from '../utils/openWorkspaceFolder';
+import { TemplatePicker } from './TemplatePicker';
+import type { PaneTemplate } from '../types';
 import './TabBar.css';
 
 interface TabBarProps {
   onContextMenu?: (e: React.MouseEvent, workspaceId: string) => void;
+  onApplyTemplate?: (template: PaneTemplate) => void;
 }
 
-export function TabBar({ onContextMenu }: TabBarProps) {
+export function TabBar({ onContextMenu, onApplyTemplate }: TabBarProps) {
   const {
     workspaces,
     activeWorkspaceId,
     broadcastMode,
     switchWorkspace,
-    createWorkspace,
     deleteWorkspace,
     reorderWorkspaces,
     renameWorkspace,
@@ -90,8 +94,15 @@ export function TabBar({ onContextMenu }: TabBarProps) {
     dragCounter.current = 0;
   }, []);
 
+  const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
+    // Only trigger on the drag region (not on tabs/buttons which are no-drag)
+    const target = e.target as HTMLElement;
+    if (target.closest('.tab-bar__tab, .tab-bar__actions, button')) return;
+    getCurrentWindow().toggleMaximize();
+  }, []);
+
   return (
-    <div className="tab-bar" role="tablist" aria-label="Workspaces">
+    <div className="tab-bar" role="tablist" aria-label="Workspaces" onDoubleClick={handleTitleBarDoubleClick}>
       <div className="tab-bar__tabs">
         {sorted.map((ws, index) => {
           const isActive = ws.id === activeWorkspaceId;
@@ -195,17 +206,21 @@ export function TabBar({ onContextMenu }: TabBarProps) {
         })}
       </div>
 
+      {/* Draggable spacer — this is the macOS titlebar drag region */}
+      <div className="tab-bar__spacer" />
+
       <div className="tab-bar__actions">
         {broadcastMode && (
           <span className="tab-bar__broadcast-indicator" title="Broadcast mode">
-            ⚡ BROADCAST
+            BROADCAST
           </span>
         )}
+        {onApplyTemplate && <TemplatePicker onSelect={onApplyTemplate} />}
         <button
           className="tab-bar__new-btn"
-          title="New workspace"
-          aria-label="Create new workspace"
-          onClick={() => createWorkspace()}
+          title="Open folder as workspace"
+          aria-label="Open folder as workspace"
+          onClick={() => void openWorkspaceFolder()}
         >
           +
         </button>
