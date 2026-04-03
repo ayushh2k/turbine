@@ -32,6 +32,34 @@
   min-width: 40px;
 }
 
+/* === Home tab === */
+.tab-bar__home-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.tab-bar__home-tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-fg);
+}
+
+.tab-bar__home-tab--active {
+  color: var(--color-fg);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom-color: var(--color-accent);
+}
+
 /* === Tab === */
 .tab-bar__tab {
   display: flex;

@@ -10,9 +10,11 @@ import './TabBar.css';
 interface TabBarProps {
   onContextMenu?: (e: React.MouseEvent, workspaceId: string) => void;
   onApplyTemplate?: (template: PaneTemplate) => void;
+  homeActive?: boolean;
+  onHomeClick?: () => void;
 }
 
-export function TabBar({ onContextMenu, onApplyTemplate }: TabBarProps) {
+export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick }: TabBarProps) {
   const {
     workspaces,
     activeWorkspaceId,
@@ -104,8 +106,19 @@ export function TabBar({ onContextMenu, onApplyTemplate }: TabBarProps) {
   return (
     <div className="tab-bar" role="tablist" aria-label="Workspaces" onDoubleClick={handleTitleBarDoubleClick}>
       <div className="tab-bar__tabs">
+        <button
+          className={`tab-bar__home-tab${homeActive ? ' tab-bar__home-tab--active' : ''}`}
+          title="Home"
+          aria-label="Home"
+          onClick={onHomeClick}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 6.5L8 2l6 4.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6.5z" />
+            <path d="M6 14V9h4v5" />
+          </svg>
+        </button>
         {sorted.map((ws, index) => {
-          const isActive = ws.id === activeWorkspaceId;
+          const isActive = ws.id === activeWorkspaceId && !homeActive;
           const isDragging = dragIndex === index;
           const isDragOver = dragOverIndex === index;
           const runningCount = ws.panes.filter(

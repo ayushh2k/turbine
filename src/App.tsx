@@ -11,6 +11,7 @@ import { useAppStartup } from './hooks/useAppStartup';
 import { useWorkspaceKeybindings } from './hooks/useWorkspaceKeybindings';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
+import { HomeScreen } from './components/HomeScreen';
 import { FileBrowser } from './components/FileBrowser';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
@@ -31,6 +32,7 @@ import './App.css';
 function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHome, setShowHome] = useState(false);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
   const [projectFiles, setProjectFiles] = useState<FileTreeEntry[]>([]);
   const [fileIndexVersion, setFileIndexVersion] = useState(0);
@@ -91,12 +93,19 @@ function App() {
     }
   }, [loading, workspaces.length, createWorkspace]);
 
+  // Dismiss home view when user switches workspace
+  useEffect(() => {
+    setShowHome(false);
+  }, [activeWorkspaceId]);
+
   // Update window title when active workspace changes
   useEffect(() => {
-    if (activeWorkspace) {
+    if (showHome) {
+      getCurrentWindow().setTitle('Turbine — Home').catch(() => {});
+    } else if (activeWorkspace) {
       getCurrentWindow().setTitle(`Turbine \u2014 ${activeWorkspace.name}`).catch(() => {});
     }
-  }, [activeWorkspace?.name]);
+  }, [activeWorkspace?.name, showHome]);
 
   // Persist on changes (debounced)
   useEffect(() => {
@@ -585,7 +594,12 @@ function App() {
     <ErrorBoundary>
       <div className="app">
         <div className="app__header">
-          <TabBar onContextMenu={handleContextMenu} onApplyTemplate={handleApplyTemplate} />
+          <TabBar
+            onContextMenu={handleContextMenu}
+            onApplyTemplate={handleApplyTemplate}
+            homeActive={showHome}
+            onHomeClick={() => setShowHome(true)}
+          />
         </div>
         <div className="app__content">
           <FileBrowser
@@ -596,32 +610,41 @@ function App() {
             onRefresh={handleRefreshProjectFiles}
           />
           <div className="app__workspace">
-            {workspaces.map((workspace) => (
-              <div
-                key={workspace.id}
-                className={[
-                  'app__workspace-panel',
-                  workspace.id === activeWorkspaceId ? 'app__workspace-panel--active' : '',
-                ].filter(Boolean).join(' ')}
-              >
-                <PaneContainer
-                  layout={workspace.layout}
-                  panes={workspace.panes}
-                  focusedPaneId={workspace.id === activeWorkspaceId ? focusedPaneId : null}
-                  onFocusPane={setFocusedPaneId}
-                  onResize={handleResize}
-                  onSplitH={handleSplitH}
-                  onSplitV={handleSplitV}
-                  onClosePane={handleClosePane}
-                  broadcastWrite={workspace.id === activeWorkspaceId ? activeBroadcastWrite : undefined}
-                  onPaneConfigChange={handlePaneConfigChange}
-                  onMovePane={handleMovePane}
-                  onRunAgentTask={workspace.id === activeWorkspaceId ? handleRunAgentTask : undefined}
-                  onOpenPalette={() => setShowPalette(true)}
-                  themeId={settings.theme}
-                />
-              </div>
-            ))}
+            {showHome ? (
+              <HomeScreen
+                paneId="__home__"
+                workspaceId={activeWorkspaceId ?? ''}
+                onFocus={() => {}}
+                onOpenPalette={() => setShowPalette(true)}
+              />
+            ) : (
+              workspaces.map((workspace) => (
+                <div
+                  key={workspace.id}
+                  className={[
+                    'app__workspace-panel',
+                    workspace.id === activeWorkspaceId ? 'app__workspace-panel--active' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <PaneContainer
+                    layout={workspace.layout}
+                    panes={workspace.panes}
+                    focusedPaneId={workspace.id === activeWorkspaceId ? focusedPaneId : null}
+                    onFocusPane={setFocusedPaneId}
+                    onResize={handleResize}
+                    onSplitH={handleSplitH}
+                    onSplitV={handleSplitV}
+                    onClosePane={handleClosePane}
+                    broadcastWrite={workspace.id === activeWorkspaceId ? activeBroadcastWrite : undefined}
+                    onPaneConfigChange={handlePaneConfigChange}
+                    onMovePane={handleMovePane}
+                    onRunAgentTask={workspace.id === activeWorkspaceId ? handleRunAgentTask : undefined}
+                    onOpenPalette={() => setShowPalette(true)}
+                    themeId={settings.theme}
+                  />
+                </div>
+              ))
+            )}
           </div>
         </div>
 
