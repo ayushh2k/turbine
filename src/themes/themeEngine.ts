@@ -102,6 +102,12 @@ export function applyTheme(themeId: string): boolean {
   root.style.setProperty('--term-background', termColors.background);
   root.style.setProperty('--term-cursor', termColors.cursor);
 
+  // Derived UI surface colors
+  root.style.setProperty('--color-bg-secondary', colors.tabBar);
+  root.style.setProperty('--color-bg-alt', `rgba(255, 255, 255, 0.02)`);
+  root.style.setProperty('--color-border', `rgba(255, 255, 255, 0.08)`);
+  root.style.setProperty('--tab-bar-tab-active-bg', colors.paneBorder);
+
   // Code viewer colors
   const cvColors = colors.codeViewer;
   root.style.setProperty('--cv-bg', cvColors.background);

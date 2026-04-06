@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTaskStore } from '../state/taskStore';
 import { useAgentStore } from '../state/agentStore';
 import { useSwarmStore } from '../state/swarmStore';
@@ -33,6 +33,7 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
   const [activeRunTaskId, setActiveRunTaskId] = useState<string | null>(null);
+  const draggedTaskId = useRef<string | null>(null);
 
   useEffect(() => {
     void loadTasks(projectPath);
@@ -51,6 +52,7 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
   );
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    draggedTaskId.current = taskId;
     e.dataTransfer.setData('text/plain', taskId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -63,14 +65,20 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
     }
   };
 
-  const handleDragLeave = () => {
-    setDragOverCol(null);
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear when leaving the column entirely, not when entering a child element
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverCol(null);
+    }
   };
 
   const handleDrop = (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault();
     setDragOverCol(null);
-    const taskId = e.dataTransfer.getData('text/plain');
+    // WebKit (Tauri/macOS) returns empty string from getData in drop handler,
+    // so fall back to the ref set during dragstart.
+    const taskId = draggedTaskId.current ?? e.dataTransfer.getData('text/plain');
+    draggedTaskId.current = null;
     if (!taskId) return;
 
     const task = tasks.find((t) => t.id === taskId);
@@ -127,6 +135,7 @@ export function TaskBoard({ projectPath, onFocus, onRunTask }: TaskBoardProps) {
                     className="task-board__card"
                     draggable
                     onDragStart={(e) => handleDragStart(e, task.id)}
+                    onDragOver={(e) => e.preventDefault()}
                   >
                     <div className="task-board__card-title">{task.title}</div>
                     <div className="task-board__card-actions">

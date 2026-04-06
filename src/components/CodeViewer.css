@@ -86,7 +86,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f5a623;
+  background: var(--color-warning);
 }
 
 .code-viewer__meta {
@@ -129,6 +129,6 @@
 .code-viewer__error {
   padding: 8px 10px;
   background: rgba(255, 80, 80, 0.15);
-  color: #ff5050;
+  color: var(--color-danger);
   font-size: 12px;
 }

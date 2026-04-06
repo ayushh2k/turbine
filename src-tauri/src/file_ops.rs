@@ -89,6 +89,14 @@ pub fn read_file(
 }
 
 #[tauri::command]
+pub fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    let mut file = fs::File::open(&path).map_err(|e| format!("Failed to open file: {e}"))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(|e| format!("Failed to read file: {e}"))?;
+    Ok(bytes)
+}
+
+#[tauri::command]
 pub fn write_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, &content).map_err(|e| format!("Failed to write file: {e}"))
 }
@@ -184,6 +192,54 @@ fn should_skip_path(name: &str) -> bool {
         name,
         ".git" | "node_modules" | "target" | ".next" | "dist" | "build" | ".turbo"
     )
+}
+
+// ---------------------------------------------------------------------------
+// Git status
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn git_status(path: String) -> Result<std::collections::HashMap<String, String>, String> {
+    use std::process::Command;
+
+    let output = Command::new("git")
+        .args(["status", "--porcelain=v1", "-uall"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    if !output.status.success() {
+        return Err("Not a git repository or git not available".into());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut statuses = std::collections::HashMap::new();
+
+    for line in stdout.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let xy = &line[..2];
+        let file_path = &line[3..];
+        // Handle renames: "R  old -> new"
+        let file_path = if let Some(pos) = file_path.find(" -> ") {
+            &file_path[pos + 4..]
+        } else {
+            file_path
+        };
+
+        let status = match xy.trim() {
+            "??" => "new",
+            s if s.contains('D') => "deleted",
+            s if s.contains('R') => "renamed",
+            s if s.contains('M') || s.contains('A') || s.contains('U') => "modified",
+            _ => continue,
+        };
+
+        statuses.insert(file_path.to_string(), status.to_string());
+    }
+
+    Ok(statuses)
 }
 
 // ---------------------------------------------------------------------------

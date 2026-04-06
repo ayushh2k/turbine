@@ -246,3 +246,56 @@
 .task-board__agent-name {
   font-weight: 500;
 }
+
+/* ---- Side-panel compact layout ---- */
+.side-panel .task-board {
+  background: var(--tab-bar-bg, #081422);
+}
+
+.side-panel .task-board__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+}
+
+.side-panel .task-board__title {
+  font-size: 13px;
+}
+
+.side-panel .task-board__path {
+  display: none;
+}
+
+.side-panel .task-board__columns {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  gap: 12px;
+  padding: 10px;
+}
+
+.side-panel .task-board__column {
+  flex: none;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  max-height: none;
+}
+
+.side-panel .task-board__column-header {
+  padding: 8px 10px 6px;
+}
+
+.side-panel .task-board__add-form {
+  padding: 0 6px 6px;
+}
+
+.side-panel .task-board__list {
+  padding: 0 6px 6px;
+  gap: 6px;
+}
+
+.side-panel .task-board__card {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+}

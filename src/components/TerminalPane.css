@@ -3,7 +3,8 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--color-bg);
+  /* Use the xterm theme background so there's no visible gap below the character grid */
+  background: var(--term-background, var(--color-bg));
 }
 
 .terminal-pane__container {
@@ -12,7 +13,17 @@
 }
 
 .terminal-pane__container .xterm {
-  padding: 4px;
+  padding: 6px 4px 0 6px;
+}
+
+/* Make the xterm viewport stretch fully so no background gap shows */
+.terminal-pane__container .xterm-viewport {
+  background: transparent !important;
+}
+
+.terminal-pane__container .xterm-screen {
+  /* Ensure the canvas fills available space cleanly */
+  margin: 0;
 }
 
 .terminal-pane__session-ended {
@@ -20,13 +31,34 @@
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.8);
-  color: var(--color-fg);
-  font-size: 12px;
-  text-align: center;
-  opacity: 0.8;
+  padding: 5px 12px;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--color-fg-muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   z-index: 5;
+  backdrop-filter: blur(6px);
+}
+
+.terminal-pane__restart-btn {
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-fg);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.terminal-pane__restart-btn:hover {
+  background: rgba(0, 229, 200, 0.12);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .terminal-pane__blocks-toggle {

@@ -135,13 +135,13 @@
 .swarm-panel__action-btn--complete:hover {
   background: rgba(76, 175, 80, 0.15);
   border-color: rgba(76, 175, 80, 0.4);
-  color: #4caf50;
+  color: var(--color-success);
 }
 
 .swarm-panel__action-btn--cancel:hover {
   background: rgba(244, 67, 54, 0.15);
   border-color: rgba(244, 67, 54, 0.4);
-  color: #f44336;
+  color: var(--color-error);
 }
 
 /* Mailbox — right side */
@@ -194,7 +194,7 @@
 .swarm-panel__pipeline-step--done {
   opacity: 0.8;
   background: rgba(76, 175, 80, 0.1);
-  color: #4caf50;
+  color: var(--color-success);
 }
 
 .swarm-panel__pipeline-role {
@@ -262,4 +262,59 @@
 .swarm-panel__messages::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
+}
+
+/* ---- Side-panel compact layout ---- */
+.side-panel .swarm-panel {
+  background: var(--tab-bar-bg, #081422);
+}
+
+.side-panel .swarm-panel__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+}
+
+.side-panel .swarm-panel__title {
+  font-size: 13px;
+}
+
+.side-panel .swarm-panel__body {
+  flex-direction: column;
+}
+
+.side-panel .swarm-panel__runs {
+  flex: none;
+  border-right: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  max-height: 50%;
+  overflow-y: auto;
+  padding: 6px;
+  gap: 4px;
+}
+
+.side-panel .swarm-panel__run-card {
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.side-panel .swarm-panel__mailbox-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.side-panel .swarm-panel__messages {
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+.side-panel .swarm-panel__message {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.04);
+  padding: 8px;
+}
+
+.side-panel .swarm-panel__pipeline {
+  flex-wrap: wrap;
 }

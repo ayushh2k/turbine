@@ -51,6 +51,24 @@
   /* Broadcast indicator */
   --broadcast-color: #f0c040;
 
+  /* Status colors */
+  --color-success: #4caf50;
+  --color-error: #f44336;
+  --color-warning-alt: #ffc107;
+
+  /* Diff colors */
+  --diff-add-fg: #a3e4d7;
+  --diff-add-bg: rgba(46, 204, 113, 0.1);
+  --diff-remove-fg: #f7a8a8;
+  --diff-remove-bg: rgba(231, 76, 60, 0.1);
+  --diff-hunk-fg: #85c1e9;
+  --diff-hunk-bg: rgba(52, 152, 219, 0.05);
+  --diff-meta-fg: #f0c040;
+
+  /* Surfaces */
+  --color-bg-alt: rgba(255, 255, 255, 0.02);
+  --color-border: rgba(255, 255, 255, 0.08);
+
   /* Typography */
   --font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -91,4 +109,23 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Global scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }

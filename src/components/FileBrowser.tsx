@@ -1,6 +1,80 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { FileTreeEntry } from '../types';
 import './FileBrowser.css';
+
+/** File icon color + letter, mimicking VS Code's Seti icon theme. */
+interface FileIconDef { letter: string; color: string }
+
+function getFileIconDef(name: string): FileIconDef {
+  const lower = name.toLowerCase();
+  const ext = lower.split('.').pop() ?? '';
+
+  // Special filenames first
+  if (lower === 'package.json') return { letter: 'N', color: '#8bc34a' };
+  if (lower === 'tsconfig.json' || lower === 'jsconfig.json') return { letter: 'TS', color: '#3178c6' };
+  if (lower === 'cargo.toml') return { letter: 'C', color: '#dea584' };
+  if (lower === '.gitignore' || lower === '.gitattributes') return { letter: 'G', color: '#f54d27' };
+  if (lower === 'dockerfile' || lower.startsWith('docker-compose')) return { letter: 'D', color: '#2496ed' };
+  if (lower === 'makefile') return { letter: 'M', color: '#6d8086' };
+  if (lower.endsWith('.lock')) return { letter: 'L', color: '#6d8086' };
+
+  const map: Record<string, FileIconDef> = {
+    ts:   { letter: 'TS', color: '#3178c6' },
+    tsx:  { letter: 'TS', color: '#3178c6' },
+    js:   { letter: 'JS', color: '#f1e05a' },
+    jsx:  { letter: 'JS', color: '#f1e05a' },
+    mjs:  { letter: 'JS', color: '#f1e05a' },
+    cjs:  { letter: 'JS', color: '#f1e05a' },
+    rs:   { letter: 'RS', color: '#dea584' },
+    py:   { letter: 'PY', color: '#3572a5' },
+    go:   { letter: 'GO', color: '#00add8' },
+    java: { letter: 'J',  color: '#b07219' },
+    kt:   { letter: 'KT', color: '#a97bff' },
+    swift:{ letter: 'S',  color: '#f05138' },
+    c:    { letter: 'C',  color: '#555555' },
+    cpp:  { letter: 'C+', color: '#f34b7d' },
+    h:    { letter: 'H',  color: '#555555' },
+    cs:   { letter: 'C#', color: '#178600' },
+    rb:   { letter: 'RB', color: '#cc342d' },
+    php:  { letter: 'PH', color: '#4f5d95' },
+    lua:  { letter: 'LU', color: '#000080' },
+    sh:   { letter: 'SH', color: '#89e051' },
+    bash: { letter: 'SH', color: '#89e051' },
+    zsh:  { letter: 'SH', color: '#89e051' },
+    json: { letter: '{}', color: '#f1e05a' },
+    yaml: { letter: 'YM', color: '#cb171e' },
+    yml:  { letter: 'YM', color: '#cb171e' },
+    toml: { letter: 'TM', color: '#9c4221' },
+    xml:  { letter: '<>', color: '#f34b7d' },
+    html: { letter: '<>', color: '#e34c26' },
+    htm:  { letter: '<>', color: '#e34c26' },
+    css:  { letter: '#',  color: '#563d7c' },
+    scss: { letter: '#',  color: '#c6538c' },
+    less: { letter: '#',  color: '#1d365d' },
+    md:   { letter: 'M',  color: '#083fa1' },
+    mdx:  { letter: 'M',  color: '#083fa1' },
+    txt:  { letter: 'T',  color: '#6d8086' },
+    svg:  { letter: 'SV', color: '#ffb13b' },
+    png:  { letter: 'IM', color: '#a074c4' },
+    jpg:  { letter: 'IM', color: '#a074c4' },
+    jpeg: { letter: 'IM', color: '#a074c4' },
+    gif:  { letter: 'IM', color: '#a074c4' },
+    webp: { letter: 'IM', color: '#a074c4' },
+    ico:  { letter: 'IM', color: '#a074c4' },
+    icns: { letter: 'IM', color: '#a074c4' },
+    mp4:  { letter: 'VD', color: '#fd971f' },
+    webm: { letter: 'VD', color: '#fd971f' },
+    sql:  { letter: 'SQ', color: '#e38c00' },
+    env:  { letter: 'EN', color: '#ecd53f' },
+    log:  { letter: 'LG', color: '#6d8086' },
+    wasm: { letter: 'WA', color: '#654ff0' },
+  };
+
+  return map[ext] ?? { letter: 'F', color: '#6d8086' };
+}
+
+type GitStatus = 'new' | 'modified' | 'deleted' | 'renamed' | 'clean';
 
 interface FileBrowserProps {
   rootPath: string | null;
@@ -141,8 +215,25 @@ export function FileBrowser({
 }: FileBrowserProps) {
   const [query, setQuery] = useState('');
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [gitStatuses, setGitStatuses] = useState<Map<string, GitStatus>>(new Map());
 
   const tree = useMemo(() => createTree(entries), [entries]);
+
+  // Fetch git status for the project
+  useEffect(() => {
+    if (!rootPath) return;
+    invoke<Record<string, string>>('git_status', { path: rootPath })
+      .then((result) => {
+        const map = new Map<string, GitStatus>();
+        for (const [file, status] of Object.entries(result)) {
+          map.set(file, status as GitStatus);
+        }
+        setGitStatuses(map);
+      })
+      .catch(() => {
+        // git not available or not a git repo — ignore
+      });
+  }, [rootPath, entries]);
 
   const fileMatches = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -174,10 +265,7 @@ export function FileBrowser({
   return (
     <aside className="file-browser" aria-label="Project files">
       <div className="file-browser__header">
-        <div>
-          <div className="file-browser__eyebrow">Project</div>
-          <div className="file-browser__title">{getRootLabel(rootPath)}</div>
-        </div>
+        <div className="file-browser__eyebrow">{getRootLabel(rootPath)}</div>
         {onRefresh && (
           <button
             className="file-browser__refresh"
@@ -185,13 +273,9 @@ export function FileBrowser({
             title="Refresh file list"
             onClick={onRefresh}
           >
-            Refresh
+            ↻
           </button>
         )}
-      </div>
-
-      <div className="file-browser__root-path" title={rootPath ?? 'No workspace root detected'}>
-        {rootPath ?? 'Set a pane working directory to browse project files'}
       </div>
 
       <input
@@ -242,6 +326,7 @@ export function FileBrowser({
                 depth={0}
                 collapsedDirs={collapsedDirs}
                 activeFilePath={activeFilePath ?? null}
+                gitStatuses={gitStatuses}
                 onToggleDirectory={toggleDirectory}
                 onOpenFile={onOpenFile}
               />
@@ -258,8 +343,14 @@ interface TreeNodeProps {
   depth: number;
   collapsedDirs: Set<string>;
   activeFilePath: string | null;
+  gitStatuses: Map<string, GitStatus>;
   onToggleDirectory: (relativePath: string) => void;
   onOpenFile: (path: string) => void;
+}
+
+function gitStatusClass(status: GitStatus | undefined): string {
+  if (!status || status === 'clean') return '';
+  return `file-browser__row--git-${status}`;
 }
 
 function TreeNode({
@@ -267,12 +358,16 @@ function TreeNode({
   depth,
   collapsedDirs,
   activeFilePath,
+  gitStatuses,
   onToggleDirectory,
   onOpenFile,
 }: TreeNodeProps) {
   const collapsed = node.isDir && collapsedDirs.has(node.relativePath);
+  const indent = 8 + depth * 16;
 
   if (!node.isDir) {
+    const gs = gitStatuses.get(node.relativePath);
+    const iconDef = getFileIconDef(node.name);
     return (
       <button
         type="button"
@@ -280,11 +375,12 @@ function TreeNode({
           'file-browser__row',
           'file-browser__row--file',
           node.path === activeFilePath ? 'file-browser__row--active' : '',
+          gitStatusClass(gs),
         ].filter(Boolean).join(' ')}
-        style={{ paddingLeft: `${12 + depth * 14}px` }}
+        style={{ paddingLeft: `${indent}px` }}
         onClick={() => onOpenFile(node.path)}
       >
-        <span className="file-browser__icon">·</span>
+        <span className="file-browser__file-icon" style={{ color: iconDef.color }}>{iconDef.letter}</span>
         <span className="file-browser__label">{node.name}</span>
       </button>
     );
@@ -295,10 +391,11 @@ function TreeNode({
       <button
         type="button"
         className="file-browser__row file-browser__row--dir"
-        style={{ paddingLeft: `${12 + depth * 14}px` }}
+        style={{ paddingLeft: `${indent}px` }}
         onClick={() => onToggleDirectory(node.relativePath)}
       >
-        <span className="file-browser__icon">{collapsed ? '+' : '-'}</span>
+        <span className={`file-browser__chevron${collapsed ? '' : ' file-browser__chevron--open'}`}>▶</span>
+        <span className="file-browser__dir-icon" style={{ color: collapsed ? '#6d8086' : '#dcb67a' }}>{collapsed ? '▸' : '▾'}</span>
         <span className="file-browser__label">{node.name}</span>
       </button>
       {!collapsed && node.children.map((child) => (
@@ -308,6 +405,7 @@ function TreeNode({
           depth={depth + 1}
           collapsedDirs={collapsedDirs}
           activeFilePath={activeFilePath}
+          gitStatuses={gitStatuses}
           onToggleDirectory={onToggleDirectory}
           onOpenFile={onOpenFile}
         />

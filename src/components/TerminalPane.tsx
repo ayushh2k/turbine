@@ -15,6 +15,7 @@ import { CommandBlocksPanel } from './CommandBlocksPanel';
 import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
 import { TerminalContextMenu } from './TerminalContextMenu';
 import { usePtyStatusStore } from '../hooks/usePtyStatus';
+import { useWorkspaceStore } from '../state/workspaceStore';
 import { spawnPaneSession } from '../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
@@ -31,6 +32,7 @@ interface TerminalPaneProps {
   onSplitV?: () => void;
   onClosePane?: () => void;
   onDetachPane?: () => void;
+  onRestart?: () => void;
 }
 
 function TerminalPaneInner({
@@ -45,6 +47,7 @@ function TerminalPaneInner({
   onSplitV,
   onClosePane,
   onDetachPane,
+  onRestart,
 }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -336,7 +339,17 @@ function TerminalPaneInner({
       unlisten?.();
       removePaneSize(paneId);
       clearBlocks();
-      invoke('pty_kill', { paneId }).catch(() => {});
+
+      // Only kill PTY if the pane was actually removed from the workspace.
+      // During splits, the layout tree restructures causing React to unmount/remount
+      // the old terminal — but the pane still exists, so we must keep the PTY alive.
+      const ws = useWorkspaceStore.getState();
+      const activeWs = ws.workspaces.find((w) => w.id === ws.activeWorkspaceId);
+      const paneStillExists = activeWs?.panes.some((p) => p.id === paneId);
+      if (!paneStillExists) {
+        invoke('pty_kill', { paneId }).catch(() => {});
+      }
+
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -437,7 +450,12 @@ function TerminalPaneInner({
       )}
       {processExited && (
         <div className="terminal-pane__session-ended" aria-live="polite">
-          Process exited (code: {exitCode ?? 'unknown'}) — hover pane toolbar to restart
+          <span>Process exited (code: {exitCode ?? 'unknown'})</span>
+          {onRestart && (
+            <button className="terminal-pane__restart-btn" onClick={onRestart}>
+              Restart
+            </button>
+          )}
         </div>
       )}
     </div>

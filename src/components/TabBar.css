@@ -125,7 +125,7 @@
 
 .tab-bar__close-btn:hover {
   opacity: 1 !important;
-  color: #fff;
+  color: var(--color-fg);
   background: rgba(255, 92, 92, 0.35);
 }
 
@@ -161,7 +161,7 @@
   padding: 0 3px;
   border-radius: 7px;
   background: var(--color-accent);
-  color: #000;
+  color: var(--color-bg);
   font-size: 9px;
   font-weight: 700;
 }

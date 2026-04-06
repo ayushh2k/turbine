@@ -88,11 +88,11 @@
 }
 
 .command-blocks-panel__status--ok {
-  background: #00d78a;
+  background: var(--color-success);
 }
 
 .command-blocks-panel__status--err {
-  background: #ff6b6b;
+  background: var(--color-error);
 }
 
 .command-blocks-panel__command {

@@ -247,6 +247,39 @@ export function resizePane(
   return layout;
 }
 
+/**
+ * Resize a split node at the given path by delta.
+ * Path is an array of indices (0 = first child, 1 = second child)
+ * identifying the exact split node in the tree.
+ * An empty path means resize the root split.
+ */
+export function resizeAtPath(
+  layout: LayoutNode,
+  path: number[],
+  delta: number
+): LayoutNode {
+  if (layout.type === 'leaf') return layout;
+
+  if (path.length === 0) {
+    return {
+      type: 'split',
+      direction: layout.direction,
+      ratio: clampRatio(layout.ratio + delta),
+      children: layout.children,
+    };
+  }
+
+  const [head, ...rest] = path;
+  return {
+    type: 'split',
+    direction: layout.direction,
+    ratio: layout.ratio,
+    children: layout.children.map((child, i) =>
+      i === head ? resizeAtPath(child, rest, delta) : child,
+    ) as [LayoutNode, LayoutNode],
+  };
+}
+
 function clampRatio(ratio: number): number {
   const MIN = 0.01;
   const MAX = 0.99;

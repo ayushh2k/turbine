@@ -1,7 +1,26 @@
-import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { keybindingManager } from '../state/keybindingManager';
 import { navigatePane } from '../state/layoutEngine';
 import type { Workspace } from '../types';
+
+/** Determine split direction based on mouse position relative to the focused pane (Hyprland-style). */
+function smartSplitDirection(
+  paneId: string,
+  mouseX: number,
+  mouseY: number,
+): 'horizontal' | 'vertical' {
+  const el = document.querySelector(`[data-pane-id="${paneId}"]`);
+  if (!el) return 'horizontal';
+  const rect = el.getBoundingClientRect();
+  // Normalize cursor position within the pane to [0, 1]
+  const relX = (mouseX - rect.left) / rect.width;
+  const relY = (mouseY - rect.top) / rect.height;
+  // If cursor is further from center horizontally → split horizontal (new column)
+  // If cursor is further from center vertically → split vertical (new row)
+  const distX = Math.abs(relX - 0.5);
+  const distY = Math.abs(relY - 0.5);
+  return distX >= distY ? 'horizontal' : 'vertical';
+}
 
 interface UseWorkspaceKeybindingsOptions {
   workspaces: Workspace[];
@@ -34,6 +53,17 @@ export function useWorkspaceKeybindings({
   setShowSettings,
   setFocusedPaneId,
 }: UseWorkspaceKeybindingsOptions) {
+  // Track mouse position for Hyprland-style smart split
+  const mousePos = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      mousePos.current.x = e.clientX;
+      mousePos.current.y = e.clientY;
+    };
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
+    return () => document.removeEventListener('mousemove', onMouseMove);
+  }, []);
+
   useEffect(() => {
     const km = keybindingManager;
 
@@ -47,8 +77,13 @@ export function useWorkspaceKeybindings({
     });
     km.register('commandPalette', () => setShowPalette((visible) => !visible));
     km.register('splitHorizontal', () => {
-      if (focusedPaneId) {
+      if (!focusedPaneId) return;
+      // Smart split: choose direction based on cursor position within the pane
+      const dir = smartSplitDirection(focusedPaneId, mousePos.current.x, mousePos.current.y);
+      if (dir === 'horizontal') {
         handleSplitH(focusedPaneId);
+      } else {
+        handleSplitV(focusedPaneId);
       }
     });
     km.register('splitVertical', () => {

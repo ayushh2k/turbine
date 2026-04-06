@@ -37,7 +37,7 @@
 }
 
 .diff-viewer__refresh-btn:hover {
-  background: var(--color-border);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--color-fg);
 }
 
@@ -59,17 +59,17 @@
 }
 
 .diff-viewer__error {
-  color: #ff6b6b;
+  color: var(--color-danger);
 }
 
 .diff-viewer__code {
-  font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
   border-radius: 4px;
-  background: #1e1e1e;
+  background: rgba(0, 0, 0, 0.2);
   padding: 8px;
 }
 
@@ -78,23 +78,23 @@
 }
 
 .diff-line--add {
-  color: #a3e4d7;
-  background: rgba(46, 204, 113, 0.1);
+  color: var(--diff-add-fg);
+  background: var(--diff-add-bg);
 }
 
 .diff-line--remove {
-  color: #f7a8a8;
-  background: rgba(231, 76, 60, 0.1);
+  color: var(--diff-remove-fg);
+  background: var(--diff-remove-bg);
 }
 
 .diff-line--hunk {
-  color: #85c1e9;
-  background: rgba(52, 152, 219, 0.05);
+  color: var(--diff-hunk-fg);
+  background: var(--diff-hunk-bg);
   margin-top: 8px;
 }
 
 .diff-line--meta {
-  color: #f39c12;
+  color: var(--diff-meta-fg);
   font-weight: bold;
   margin-top: 12px;
 }

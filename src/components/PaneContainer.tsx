@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { LayoutNode, PaneConfig, Task, AgentPreset } from '../types';
 import { HomeScreen } from './HomeScreen';
 import { TerminalPane } from './TerminalPane';
@@ -11,12 +12,25 @@ import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
 
+function getPaneLabel(pane: PaneConfig): string {
+  const filename = pane.workingDirectory?.replace(/\\/g, '/').split('/').pop();
+  switch (pane.type) {
+    case 'terminal': return 'Terminal';
+    case 'code_viewer': return filename ?? 'Code';
+    case 'media_viewer': return filename ?? 'Media';
+    case 'task_board': return 'Tasks';
+    case 'diff_viewer': return 'Diff';
+    case 'swarm_panel': return 'Swarm';
+    default: return 'Pane';
+  }
+}
+
 interface PaneContainerProps {
   layout: LayoutNode;
   panes: PaneConfig[];
   focusedPaneId: string | null;
   onFocusPane: (paneId: string) => void;
-  onResize: (paneId: string, delta: number) => void;
+  onResize: (path: number[], delta: number) => void;
   onSplitH: (paneId: string) => void;
   onSplitV: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
@@ -51,6 +65,7 @@ export function PaneContainer({
       <LayoutRenderer
         node={layout}
         panes={panes}
+        path={[]}
         focusedPaneId={focusedPaneId}
         onFocusPane={onFocusPane}
         onResize={onResize}
@@ -72,9 +87,10 @@ export function PaneContainer({
 interface LayoutRendererProps {
   node: LayoutNode;
   panes: PaneConfig[];
+  path: number[];
   focusedPaneId: string | null;
   onFocusPane: (paneId: string) => void;
-  onResize: (paneId: string, delta: number) => void;
+  onResize: (path: number[], delta: number) => void;
   onSplitH: (paneId: string) => void;
   onSplitV: (paneId: string) => void;
   onClosePane: (paneId: string) => void;
@@ -90,6 +106,7 @@ interface LayoutRendererProps {
 function LayoutRenderer({
   node,
   panes,
+  path,
   focusedPaneId,
   onFocusPane,
   onResize,
@@ -130,9 +147,6 @@ function LayoutRenderer({
   const firstFlex = node.ratio;
   const secondFlex = 1 - node.ratio;
 
-  // Find a paneId in the first child for resize targeting
-  const firstLeafId = findFirstLeaf(node.children[0]);
-
   return (
     <div
       className="pane-split"
@@ -142,6 +156,7 @@ function LayoutRenderer({
         <LayoutRenderer
           node={node.children[0]}
           panes={panes}
+          path={[...path, 0]}
           focusedPaneId={focusedPaneId}
           onFocusPane={onFocusPane}
           onResize={onResize}
@@ -160,13 +175,14 @@ function LayoutRenderer({
       <ResizeHandle
         direction={isHorizontal ? 'horizontal' : 'vertical'}
         onResizeDelta={(delta) => {
-          if (firstLeafId) onResize(firstLeafId, delta);
+          onResize(path, delta);
         }}
       />
       <div style={{ flex: secondFlex, display: 'flex', overflow: 'hidden' }}>
         <LayoutRenderer
           node={node.children[1]}
           panes={panes}
+          path={[...path, 1]}
           focusedPaneId={focusedPaneId}
           onFocusPane={onFocusPane}
           onResize={onResize}
@@ -220,7 +236,7 @@ function LeafPane({
   themeId,
 }: LeafPaneProps) {
   const pane = panes.find((p) => p.id === paneId);
-  const { status, exitCode, restartPane } = usePaneStatus(paneId, {
+  const { restartPane } = usePaneStatus(paneId, {
     cwd: pane?.workingDirectory,
     env: pane?.envVars,
     startupCommand: pane?.startupCommand,
@@ -302,6 +318,17 @@ function LeafPane({
     [onPaneConfigChange, paneId]
   );
 
+  const handleRunCommand = useCallback(
+    (command: string) => {
+      const encoder = new TextEncoder();
+      invoke('pty_write', {
+        paneId,
+        data: Array.from(encoder.encode(`${command}\n`)),
+      }).catch(() => {});
+    },
+    [paneId]
+  );
+
   const leafClasses = [
     'pane-leaf',
     isFocused ? 'pane-leaf--focused' : '',
@@ -314,6 +341,7 @@ function LeafPane({
   return (
     <div
       className={leafClasses}
+      data-pane-id={paneId}
       style={{ flex: 1 }}
       draggable
       onDragStart={handleDragStart}
@@ -322,6 +350,18 @@ function LeafPane({
       onDrop={handleDrop}
       onDragEnd={handleDragEnd}
     >
+      {pane && pane.type !== 'home' && (
+        <div className="pane-title-bar">
+          <span className="pane-title-bar__label">{getPaneLabel(pane)}</span>
+          <button
+            className="pane-title-bar__close"
+            onClick={handleClosePane}
+            title="Close pane"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {pane?.type === 'home' && (
         <HomeScreen
           paneId={paneId}
@@ -341,6 +381,7 @@ function LeafPane({
           onSplitH={handleSplitH}
           onSplitV={handleSplitV}
           onClosePane={handleClosePane}
+          onRestart={restartPane}
         />
       )}
       {pane?.type === 'code_viewer' && pane.workingDirectory && (
@@ -400,17 +441,10 @@ function LeafPane({
         startupCommand={pane?.type === 'terminal' ? pane.startupCommand : undefined}
         onAutoLaunchChange={onPaneConfigChange && pane?.type === 'terminal' ? handleAutoLaunchChange : undefined}
         onStartupCommandChange={onPaneConfigChange && pane?.type === 'terminal' ? handleStartupCommandChange : undefined}
-        processStatus={pane?.type === 'terminal' ? status : null}
-        exitCode={exitCode}
-        onRestart={pane?.type === 'terminal' ? restartPane : undefined}
+        onRunCommand={pane?.type === 'terminal' ? handleRunCommand : undefined}
       />}
     </div>
   );
-}
-
-function findFirstLeaf(node: LayoutNode): string | null {
-  if (node.type === 'leaf') return node.paneId;
-  return findFirstLeaf(node.children[0]);
 }
 
 /* Draggable resize handle */
@@ -427,15 +461,23 @@ function ResizeHandle({ direction, onResizeDelta }: ResizeHandleProps) {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setDragging(true);
       startPos.current = direction === 'horizontal' ? e.clientX : e.clientY;
+
+      // Use the parent split container's size for accurate ratio calculation
+      const parent = handleRef.current?.parentElement;
+      const containerSize = parent
+        ? direction === 'horizontal'
+          ? parent.getBoundingClientRect().width
+          : parent.getBoundingClientRect().height
+        : direction === 'horizontal'
+          ? window.innerWidth
+          : window.innerHeight;
 
       const handleMouseMove = (ev: MouseEvent) => {
         const current = direction === 'horizontal' ? ev.clientX : ev.clientY;
         const diff = current - startPos.current;
-        // Normalize delta to a ratio-like value (pixels / viewport dimension)
-        const containerSize =
-          direction === 'horizontal' ? window.innerWidth : window.innerHeight;
         const delta = diff / containerSize;
         if (Math.abs(delta) > 0.001) {
           onResizeDelta(delta);

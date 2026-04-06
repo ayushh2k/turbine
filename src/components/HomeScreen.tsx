@@ -9,6 +9,7 @@ interface HomeScreenProps {
   workspaceId: string;
   onFocus?: () => void;
   onOpenPalette?: () => void;
+  onSelectType?: (type: PaneConfig['type']) => void;
 }
 
 const QUICK_ACTIONS: {
@@ -24,7 +25,7 @@ const QUICK_ACTIONS: {
   { id: 'swarm_panel', label: 'Swarm Panel', description: 'Monitor agent swarms', icon: '*' },
 ];
 
-export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette }: HomeScreenProps) {
+export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette, onSelectType }: HomeScreenProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
 
@@ -54,7 +55,6 @@ export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette }: Home
         {/* Logo / title */}
         <div className="home-screen__hero">
           <h1 className="home-screen__title">Turbine</h1>
-          <p className="home-screen__subtitle">AI Agent Mission Control</p>
         </div>
 
         {/* Search prompt */}
@@ -85,7 +85,7 @@ export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette }: Home
               <button
                 key={action.id}
                 className="home-screen__action-card"
-                onClick={() => convertPane(action.id)}
+                onClick={() => onSelectType ? onSelectType(action.id) : convertPane(action.id)}
               >
                 <span className="home-screen__action-icon">{action.icon}</span>
                 <span className="home-screen__action-info">

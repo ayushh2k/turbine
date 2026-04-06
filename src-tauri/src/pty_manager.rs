@@ -54,6 +54,7 @@ fn harvest_exit_code(handle: &AppHandle, pane_id: &str) -> Option<i32> {
 /// - Uses the user's default shell if `shell` is None.
 /// - On macOS defaults to /bin/zsh, on Linux /bin/bash.
 /// - Spawns a reader thread that streams output via Tauri events.
+/// - If a PTY already exists for this pane_id, returns Ok immediately (no-op).
 #[tauri::command]
 pub fn pty_spawn(
     pane_id: String,
@@ -65,6 +66,15 @@ pub fn pty_spawn(
     pty_state: State<'_, PtyManager>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    // If a PTY already exists for this pane (e.g. component remount after layout
+    // restructure), skip spawning to keep the existing session alive.
+    {
+        let entries = pty_state.entries.lock().map_err(|e| e.to_string())?;
+        if entries.contains_key(&pane_id) {
+            return Ok(());
+        }
+    }
+
     let pty_system = native_pty_system();
     let cols = cols.unwrap_or(80).max(2);
     let rows = rows.unwrap_or(24).max(2);

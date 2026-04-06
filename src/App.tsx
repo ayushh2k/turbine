@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSettingsStore } from './state/settingsStore';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { findLeafIds, movePane, createCodeAndConsolePreset, createWebDevPreset } from './state/layoutEngine';
+import { findLeafIds, movePane, resizeAtPath, createCodeAndConsolePreset, createWebDevPreset, applyTemplate, splitHorizontal, splitVertical, closePane } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
 import { useAppStartup } from './hooks/useAppStartup';
@@ -12,27 +12,42 @@ import { useWorkspaceKeybindings } from './hooks/useWorkspaceKeybindings';
 import { TabBar } from './components/TabBar';
 import { PaneContainer } from './components/PaneContainer';
 import { HomeScreen } from './components/HomeScreen';
-import { FileBrowser } from './components/FileBrowser';
 import { useWorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SettingsPanel } from './components/SettingsPanel';
-import type { FileTreeEntry, PaneTemplate, Task, AgentPreset } from './types';
+import { ActivityBar, type SidePanelId } from './components/ActivityBar';
+import { SidePanel } from './components/SidePanel';
+import type { FileTreeEntry, PaneTemplate, Task, AgentPreset, PaneConfig } from './types';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
 import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
-import {
-  applyTemplate,
-  splitHorizontal,
-  splitVertical,
-  closePane,
-  resizePane,
-} from './state/layoutEngine';
 import './App.css';
 
 function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHome, setShowHome] = useState(false);
+  const [activePanel, setActivePanel] = useState<SidePanelId | null>(null);
+
+  const handlePanelToggle = useCallback((panel: SidePanelId) => {
+    setActivePanel((prev) => (prev === panel ? null : panel));
+  }, []);
+
+  const handleHomeSelectType = useCallback((type: PaneConfig['type']) => {
+    setShowHome(false);
+    const ws = useWorkspaceStore.getState().workspaces.find(
+      (w) => w.id === useWorkspaceStore.getState().activeWorkspaceId,
+    );
+    const targetPaneId = ws?.panes[0]?.id;
+    if (!targetPaneId || !ws) return;
+    useWorkspaceStore.setState((s) => ({
+      workspaces: s.workspaces.map((w) =>
+        w.id === ws.id
+          ? { ...w, panes: w.panes.map((p) => (p.id === targetPaneId ? { ...p, type } : p)) }
+          : w,
+      ),
+    }));
+  }, []);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
   const [projectFiles, setProjectFiles] = useState<FileTreeEntry[]>([]);
   const [fileIndexVersion, setFileIndexVersion] = useState(0);
@@ -204,16 +219,19 @@ function App() {
   );
 
   const handleResize = useCallback(
-    (paneId: string, delta: number) => {
-      if (!activeWorkspace) return;
-      const newLayout = resizePane(activeWorkspace.layout, paneId, delta);
+    (path: number[], delta: number) => {
+      // Read current state directly to avoid stale closures during drag
+      const { workspaces, activeWorkspaceId: awId } = useWorkspaceStore.getState();
+      const ws = workspaces.find((w) => w.id === awId);
+      if (!ws) return;
+      const newLayout = resizeAtPath(ws.layout, path, delta);
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
-          w.id === activeWorkspaceId ? { ...w, layout: newLayout } : w,
+          w.id === awId ? { ...w, layout: newLayout } : w,
         ),
       }));
     },
-    [activeWorkspace, activeWorkspaceId],
+    [],
   );
 
   // Apply a pane layout template
@@ -602,7 +620,15 @@ function App() {
           />
         </div>
         <div className="app__content">
-          <FileBrowser
+          <ActivityBar
+            activePanel={activePanel}
+            onPanelToggle={handlePanelToggle}
+            onOpenSettings={() => setShowSettings(true)}
+            broadcastMode={broadcastMode}
+            onToggleBroadcast={toggleBroadcast}
+          />
+          <SidePanel
+            activePanel={activePanel}
             rootPath={workspaceRoot}
             entries={projectFiles}
             activeFilePath={activeFilePath}
@@ -616,6 +642,7 @@ function App() {
                 workspaceId={activeWorkspaceId ?? ''}
                 onFocus={() => {}}
                 onOpenPalette={() => setShowPalette(true)}
+                onSelectType={handleHomeSelectType}
               />
             ) : (
               workspaces.map((workspace) => (

@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import type { PaneProcessStatus } from '../hooks/usePtyStatus';
 import './PaneToolbar.css';
 
 interface PaneToolbarProps {
@@ -10,9 +9,7 @@ interface PaneToolbarProps {
   startupCommand?: string | null;
   onAutoLaunchChange?: (autoLaunch: boolean) => void;
   onStartupCommandChange?: (command: string | null) => void;
-  processStatus?: PaneProcessStatus | null;
-  exitCode?: number | null;
-  onRestart?: () => void;
+  onRunCommand?: (command: string) => void;
   onDetach?: () => void;
 }
 
@@ -24,9 +21,7 @@ export function PaneToolbar({
   startupCommand,
   onAutoLaunchChange,
   onStartupCommandChange,
-  processStatus = null,
-  exitCode,
-  onRestart,
+  onRunCommand,
   onDetach,
 }: PaneToolbarProps) {
   const [visible, setVisible] = useState(false);
@@ -87,26 +82,6 @@ export function PaneToolbar({
               ⇱
             </button>
           )}
-          {processStatus && (
-            <span
-              className={`pane-toolbar__status-dot pane-toolbar__status-dot--${processStatus === 'running' ? 'running' : exitCode === 0 ? 'exited-ok' : 'exited-err'}`}
-              title={
-                processStatus === 'running'
-                  ? 'Process running'
-                  : `Process exited (code: ${exitCode ?? 'unknown'})`
-              }
-            />
-          )}
-          {processStatus && processStatus !== 'running' && onRestart && (
-            <button
-              className="pane-toolbar__btn pane-toolbar__btn--restart"
-              title={`Restart process (exited with code ${exitCode ?? 'unknown'})`}
-              aria-label="Restart process"
-              onClick={onRestart}
-            >
-              &#8635;
-            </button>
-          )}
           <button
             className="pane-toolbar__btn pane-toolbar__btn--close"
             title="Close pane"
@@ -127,13 +102,29 @@ export function PaneToolbar({
             />
             <span>Auto-launch on open</span>
           </label>
-          <input
-            className="pane-toolbar__config-input"
-            type="text"
-            placeholder="Startup command..."
-            value={startupCommand ?? ''}
-            onChange={handleCommandChange}
-          />
+          <div className="pane-toolbar__config-command">
+            <input
+              className="pane-toolbar__config-input"
+              type="text"
+              placeholder="Startup command..."
+              value={startupCommand ?? ''}
+              onChange={handleCommandChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && startupCommand && onRunCommand) {
+                  onRunCommand(startupCommand);
+                }
+              }}
+            />
+            {startupCommand && onRunCommand && (
+              <button
+                className="pane-toolbar__config-run"
+                title="Run command now"
+                onClick={() => onRunCommand(startupCommand)}
+              >
+                Run
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

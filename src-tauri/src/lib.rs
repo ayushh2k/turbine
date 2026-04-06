@@ -64,10 +64,12 @@ pub fn run() {
             pty_manager::pty_resize,
             pty_manager::pty_kill,
             file_ops::read_file,
+            file_ops::read_binary_file,
             file_ops::write_file,
             file_ops::list_workspace_files,
             file_ops::watch_file,
             file_ops::unwatch_file,
+            file_ops::git_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

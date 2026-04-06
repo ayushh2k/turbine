@@ -20,6 +20,8 @@ interface PaneSize {
 interface PtyStatusState {
   statuses: Map<string, PaneStatusEntry>;
   paneSizes: Map<string, PaneSize>;
+  /** Timestamp (ms) when each pane was last set to 'running'. Used to ignore stale pty_exit events. */
+  spawnTimestamps: Map<string, number>;
   setStatus: (paneId: string, status: PaneProcessStatus, exitCode: number | null) => void;
   removeStatus: (paneId: string) => void;
   setPaneSize: (paneId: string, cols: number, rows: number) => void;
@@ -28,9 +30,13 @@ interface PtyStatusState {
 
 const DEFAULT_ENTRY: PaneStatusEntry = { status: 'running', exitCode: null };
 
+/** Grace period (ms) after spawning during which stale pty_exit events are ignored. */
+const SPAWN_GRACE_MS = 3000;
+
 export const usePtyStatusStore = create<PtyStatusState>((set) => ({
   statuses: new Map(),
   paneSizes: new Map(),
+  spawnTimestamps: new Map(),
 
   setStatus: (paneId, status, exitCode) => {
     set((state) => {
@@ -40,6 +46,12 @@ export const usePtyStatusStore = create<PtyStatusState>((set) => ({
       }
       const next = new Map(state.statuses);
       next.set(paneId, { status, exitCode });
+      // Track when a pane transitions to 'running' (i.e. a new session was spawned)
+      if (status === 'running') {
+        const ts = new Map(state.spawnTimestamps);
+        ts.set(paneId, Date.now());
+        return { statuses: next, spawnTimestamps: ts };
+      }
       return { statuses: next };
     });
   },
@@ -86,6 +98,12 @@ export function usePtyStatusListener() {
 
     listen<{ pane_id: string; exit_code: number | null }>('pty_exit', (event) => {
       const { pane_id, exit_code } = event.payload;
+      // Ignore stale exit events that arrive shortly after a pane was (re)spawned.
+      // This handles the React StrictMode double-mount and kill/respawn race conditions.
+      const spawnTs = usePtyStatusStore.getState().spawnTimestamps.get(pane_id);
+      if (spawnTs && Date.now() - spawnTs < SPAWN_GRACE_MS) {
+        return;
+      }
       const status: PaneProcessStatus =
         exit_code === null || exit_code !== 0 ? 'errored' : 'exited';
       setStatus(pane_id, status, exit_code);

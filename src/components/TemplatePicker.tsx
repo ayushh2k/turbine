@@ -67,12 +67,14 @@ export function TemplatePicker({ onSelect }: TemplatePickerProps) {
 /** Render a tiny visual grid preview for the template count */
 function renderMiniGrid(count: number) {
   const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
   const cells = Array.from({ length: count }, (_, i) => (
     <span
       key={i}
       className="template-picker__cell"
       style={{
-        width: `${100 / cols}%`,
+        width: `calc(${100 / cols}% - 1.5px)`,
+        height: `calc(${100 / rows}% - 1.5px)`,
       }}
     />
   ));

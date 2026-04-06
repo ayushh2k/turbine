@@ -9,8 +9,8 @@
 }
 
 .settings-panel {
-  width: 600px;
-  max-height: 500px;
+  width: min(600px, 90vw);
+  max-height: min(500px, 80vh);
   background: var(--color-bg, #0b1929);
   border: 1px solid var(--color-accent, #00e5c8);
   border-radius: 8px;
@@ -122,7 +122,7 @@
 }
 
 .settings-panel__helper--error {
-  color: #ff7b72;
+  color: var(--color-danger);
   opacity: 1;
 }
 

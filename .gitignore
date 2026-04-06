@@ -1,3 +1,9 @@
+# ── Node ───────────────────────────────────────────────────────────────────────
+node_modules
+dist
+dist-ssr
+*.local
+
 # Logs
 logs
 *.log
@@ -7,18 +13,25 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ── Rust / Tauri ───────────────────────────────────────────────────────────────
+# (src-tauri has its own .gitignore for target/)
+src-tauri/target/
+src-tauri/gen/android/
+src-tauri/gen/apple/
 
-# Editor directories and files
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editors ───────────────────────────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# ── Test output ───────────────────────────────────────────────────────────────
+coverage/

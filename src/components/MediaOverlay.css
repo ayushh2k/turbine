@@ -24,7 +24,7 @@
   right: 4px;
   z-index: 1;
   background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  color: var(--color-fg);
   border: none;
   border-radius: 50%;
   width: 22px;
@@ -46,7 +46,7 @@
   width: 100%;
   max-height: 240px;
   object-fit: contain;
-  background: #000;
+  background: var(--color-bg);
 }
 
 .media-overlay__label {
