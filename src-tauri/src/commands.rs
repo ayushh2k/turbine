@@ -597,6 +597,7 @@ fn build_agent_pane_id(run_id: &str, role: &str, suffix: &str) -> String {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn swarm_spawn_agent(
     run_id: String,

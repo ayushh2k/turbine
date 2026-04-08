@@ -1,39 +1,39 @@
 name: Release
 
-# Triggers on any tag push matching v* (e.g. v0.1.0, v1.2.3-beta.1)
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
-# Required to create GitHub Releases and upload assets
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     name: Build (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          # macOS — universal binary (Apple Silicon + Intel in one .dmg)
-          - name: macOS (universal)
+          - name: macOS (arm64)
             platform: macos-latest
-            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            tauri-args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin
+            tauri-args: --target aarch64-apple-darwin
 
-          # Linux — .deb + .AppImage
-          - name: Linux (x64)
+          - name: macOS (x86_64)
+            platform: macos-latest
+            rust-targets: x86_64-apple-darwin
+            tauri-args: --target x86_64-apple-darwin
+
+          - name: Linux (x86_64)
             platform: ubuntu-22.04
-            rust-targets: ''
-            tauri-args: ''
+            rust-targets: ""
+            tauri-args: ""
 
-          # Windows — .exe installer + .msi
-          - name: Windows (x64)
+          - name: Windows (x86_64)
             platform: windows-latest
-            rust-targets: ''
-            tauri-args: ''
+            rust-targets: ""
+            tauri-args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Node + pnpm ──────────────────────────────────────────────────────────
+      # -- Node + pnpm -------------------------------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -54,7 +54,7 @@ jobs:
 
       - name: Get pnpm store path
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -63,10 +63,10 @@ jobs:
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-
 
-      - name: Install JS dependencies
+      - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # ── Rust ─────────────────────────────────────────────────────────────────
+      # -- Rust ---------------------------------------------------------------
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -77,7 +77,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # ── Linux system dependencies ─────────────────────────────────────────────
+      # -- Linux system dependencies ------------------------------------------
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -89,34 +89,25 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      # ── Build + create GitHub Release ────────────────────────────────────────
-      - name: Build and release
+      # -- Build + upload artifacts -------------------------------------------
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          # ── macOS code signing (optional) ──────────────────────────────────
-          # To enable signed + notarized macOS builds, add these as repo Secrets:
-          # Settings → Secrets → Actions → New repository secret
-          #
-          # APPLE_CERTIFICATE          — base64-encoded Developer ID Application .p12
-          # APPLE_CERTIFICATE_PASSWORD — password for the .p12
-          # APPLE_SIGNING_IDENTITY     — e.g. "Developer ID Application: Your Name (TEAM_ID)"
-          # APPLE_ID                   — your Apple ID email
-          # APPLE_PASSWORD             — app-specific password (appleid.apple.com)
-          # APPLE_TEAM_ID              — your Apple Developer team ID
-          #
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
+          # macOS code signing (set these as repo secrets to enable)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Tauri v2 updater signing key (set as repo secret to enable auto-updates)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
-          releaseName: 'Turbine ${{ github.ref_name }}'
-          # Reads from CHANGELOG.md if present; falls back to this message
+          releaseName: "Turbine ${{ github.ref_name }}"
           releaseBody: |
             ## What's new in ${{ github.ref_name }}
 
@@ -126,9 +117,11 @@ jobs:
 
             | Platform | File |
             |----------|------|
-            | macOS (Universal) | `Turbine_*.dmg` |
-            | Linux | `turbine-app_*_amd64.deb` · `turbine-app_*_amd64.AppImage` |
-            | Windows | `Turbine_*_x64-setup.exe` · `Turbine_*_x64_en-US.msi` |
-          releaseDraft: true       # Creates a draft — review before publishing
-          prerelease: ${{ contains(github.ref_name, '-') }}  # auto-prerelease for v1.0.0-beta.1 etc.
+            | macOS (Apple Silicon) | `Turbine_*_aarch64.dmg` |
+            | macOS (Intel) | `Turbine_*_x64.dmg` |
+            | Linux | `turbine-app_*_amd64.deb` / `turbine-app_*_amd64.AppImage` |
+            | Windows | `Turbine_*_x64-setup.exe` / `Turbine_*_x64_en-US.msi` |
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          includeUpdaterJson: true
           args: ${{ matrix.tauri-args }}

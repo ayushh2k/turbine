@@ -9,6 +9,14 @@ interface WorkspaceState {
   broadcastMode: boolean;
   broadcastTargets: Set<string>;
 
+  // Auto-save
+  _dirty: boolean;
+  _autoSaveEnabled: boolean;
+  _autoSaveIntervalId: ReturnType<typeof setInterval> | null;
+  markDirty: () => void;
+  startAutoSave: (intervalMs?: number) => void;
+  stopAutoSave: () => void;
+
   // Actions
   createWorkspace: (name?: string, preset?: import('./layoutEngine').StarterPreset) => Workspace;
   deleteWorkspace: (id: string) => void;
@@ -71,6 +79,40 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeWorkspaceId: null,
   broadcastMode: false,
   broadcastTargets: new Set<string>(),
+
+  // Auto-save state
+  _dirty: false,
+  _autoSaveEnabled: true,
+  _autoSaveIntervalId: null,
+
+  markDirty: () => set({ _dirty: true }),
+
+  startAutoSave: (intervalMs = 30_000) => {
+    const { _autoSaveIntervalId } = get();
+    // Prevent duplicate intervals
+    if (_autoSaveIntervalId !== null) return;
+
+    const id = setInterval(() => {
+      const { _dirty, _autoSaveEnabled, persistAll } = get();
+      if (_dirty && _autoSaveEnabled) {
+        set({ _dirty: false });
+        persistAll().catch(() => {
+          // Re-mark dirty so the next tick retries
+          set({ _dirty: true });
+        });
+      }
+    }, intervalMs);
+
+    set({ _autoSaveIntervalId: id });
+  },
+
+  stopAutoSave: () => {
+    const { _autoSaveIntervalId } = get();
+    if (_autoSaveIntervalId !== null) {
+      clearInterval(_autoSaveIntervalId);
+      set({ _autoSaveIntervalId: null });
+    }
+  },
 
   createWorkspace: (name?: string, preset?: import('./layoutEngine').StarterPreset) => {
     const { workspaces } = get();
@@ -378,5 +420,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
 }));
+
+// Auto-mark dirty when workspaces or activeWorkspaceId change.
+// Skip the initial restoreAll hydration by waiting for the first real mutation.
+let _hydrated = false;
+useWorkspaceStore.subscribe(
+  (state, prevState) => {
+    if (state.workspaces !== prevState.workspaces || state.activeWorkspaceId !== prevState.activeWorkspaceId) {
+      if (_hydrated) {
+        state.markDirty();
+      } else {
+        // The first workspaces change is from restoreAll — don't mark dirty.
+        _hydrated = true;
+      }
+    }
+  },
+);
 
 export { createDefaultWorkspace, createDefaultPane };

@@ -18,6 +18,12 @@ pub struct PtyManager {
     pub entries: Mutex<HashMap<String, PtyEntry>>,
 }
 
+impl Default for PtyManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PtyManager {
     pub fn new() -> Self {
         Self {
@@ -72,6 +78,7 @@ fn harvest_exit_code(handle: &AppHandle, pane_id: &str) -> Option<i32> {
 ///
 /// When `command` is `Some(cmd)`, the shell is invoked with `-c <cmd>` so the process
 /// runs the command and then exits naturally. When `None`, a bare interactive shell is spawned.
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_pty_internal(
     pane_id: String,
     cwd: Option<String>,
@@ -219,6 +226,7 @@ pub fn spawn_pty_internal(
 /// - On macOS defaults to /bin/zsh, on Linux /bin/bash.
 /// - Spawns a reader thread that streams output via Tauri events.
 /// - If a PTY already exists for this pane_id, returns Ok immediately (no-op).
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn pty_spawn(
     pane_id: String,

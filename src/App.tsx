@@ -5,7 +5,7 @@ import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
 import { useSwarmStore } from './state/swarmStore';
 import { useSettingsStore } from './state/settingsStore';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
-import { findLeafIds, movePane, resizeAtPath, createCodeAndConsolePreset, createWebDevPreset, applyTemplate, splitHorizontal, splitVertical, closePane } from './state/layoutEngine';
+import { findLeafIds, movePane, resizeAtPath, createCodeAndConsolePreset, createWebDevPreset, applyTemplate, splitHorizontal, splitVertical, closePane, navigatePane } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
 import { useAppStartup } from './hooks/useAppStartup';
@@ -75,6 +75,8 @@ function App() {
     switchWorkspace,
     createWorkspace,
     persistAll,
+    startAutoSave,
+    stopAutoSave,
   } = useWorkspaceStore();
 
   const { settings } = useSettingsStore();
@@ -143,10 +145,19 @@ function App() {
   // Persist on changes (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
-      persistAll().catch(() => {});
+      useWorkspaceStore.setState({ _dirty: false });
+      persistAll().catch(() => {
+        useWorkspaceStore.setState({ _dirty: true });
+      });
     }, 2000);
     return () => clearTimeout(timer);
   }, [workspaces, activeWorkspaceId, persistAll]);
+
+  // Periodic auto-save as a safety net against crashes (every 30s, only if dirty)
+  useEffect(() => {
+    startAutoSave(30_000);
+    return () => stopAutoSave();
+  }, [startAutoSave, stopAutoSave]);
 
   useEffect(() => {
     if (!workspaceRoot) {
@@ -554,6 +565,34 @@ function App() {
       );
     }
 
+    // Navigate between panes
+    if (focusedPaneId && activeWorkspace) {
+      actions.push(
+        { id: 'nav-up', label: 'Navigate Up', category: 'Navigate', shortcut: 'Ctrl+ArrowUp', type: 'command', handler: () => setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'up')) },
+        { id: 'nav-down', label: 'Navigate Down', category: 'Navigate', shortcut: 'Ctrl+ArrowDown', type: 'command', handler: () => setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'down')) },
+        { id: 'nav-left', label: 'Navigate Left', category: 'Navigate', shortcut: 'Ctrl+ArrowLeft', type: 'command', handler: () => setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'left')) },
+        { id: 'nav-right', label: 'Navigate Right', category: 'Navigate', shortcut: 'Ctrl+ArrowRight', type: 'command', handler: () => setFocusedPaneId(navigatePane(activeWorkspace.layout, focusedPaneId, 'right')) },
+      );
+    }
+
+    // Layout templates
+    const templates: { count: PaneTemplate; label: string }[] = [
+      { count: 1, label: '1 Pane (Single)' },
+      { count: 2, label: '2 Panes (Side by Side)' },
+      { count: 4, label: '4 Panes (Grid)' },
+      { count: 6, label: '6 Panes' },
+      { count: 8, label: '8 Panes' },
+    ];
+    for (const tmpl of templates) {
+      actions.push({
+        id: `template-${tmpl.count}`,
+        label: `Apply Layout: ${tmpl.label}`,
+        category: 'Layout',
+        type: 'command',
+        handler: () => handleApplyTemplate(tmpl.count),
+      });
+    }
+
     for (const entry of projectFiles.filter((entry) => !entry.isDir).slice(0, 2000)) {
       actions.push({
         id: `file-current-${entry.relativePath}`,
@@ -684,7 +723,7 @@ function App() {
     }
 
     return actions;
-  }, [workspaces, focusedPaneId, activeWorkspace, activeWorkspaceId, createWorkspace, switchWorkspace, handleSplitH, handleSplitV, handleClosePane, toggleBroadcast, projectFiles, handleOpenFile, handleRefreshProjectFiles]);
+  }, [workspaces, focusedPaneId, activeWorkspace, activeWorkspaceId, createWorkspace, switchWorkspace, handleSplitH, handleSplitV, handleClosePane, handleApplyTemplate, toggleBroadcast, projectFiles, handleOpenFile, handleRefreshProjectFiles]);
 
   if (loading) {
     return (
