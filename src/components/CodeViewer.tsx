@@ -33,7 +33,6 @@ export function CodeViewer({
   const savedContentsRef = useRef<Record<string, string>>({});
   const activeFileRef = useRef(filePath);
   const lastRequestedFileRef = useRef(filePath);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([filePath]);
   const [activeFilePath, setActiveFilePath] = useState(filePath);
@@ -151,7 +150,7 @@ export function CodeViewer({
 
     const cachedContent = contentsRef.current[currentPath];
     if (cachedContent === undefined) {
-      loadFile(currentPath, view, setLoading, setError)
+      loadFile(currentPath, view, setError)
         .then((content) => {
           if (lastRequestedFileRef.current !== currentPath) {
             return;
@@ -167,7 +166,6 @@ export function CodeViewer({
     } else {
       savedContentsRef.current[currentPath] ??= cachedContent;
       markDirty(currentPath, cachedContent !== (savedContentsRef.current[currentPath] ?? ''));
-      setLoading(false);
       setError(null);
     }
 
@@ -182,7 +180,7 @@ export function CodeViewer({
         typeof event.payload === 'string' ? event.payload : event.payload.path;
 
       if (changedPath === currentPath) {
-        loadFile(currentPath, view, setLoading, setError)
+        loadFile(currentPath, view, setError)
           .then((content) => {
             if (lastRequestedFileRef.current !== currentPath) {
               return;
@@ -207,7 +205,13 @@ export function CodeViewer({
     return () => {
       disposed = true;
       unwatchUnlisten?.();
-      contentsRef.current[currentPath] = view.state.doc.toString();
+      // Only cache content if it's non-empty — otherwise a StrictMode
+      // double-mount saves the empty initial doc and the second mount
+      // thinks the file was already loaded and skips the fetch.
+      const currentContent = view.state.doc.toString();
+      if (currentContent) {
+        contentsRef.current[currentPath] = currentContent;
+      }
       invoke('unwatch_file', { path: currentPath }).catch(() => {});
       view.destroy();
       viewRef.current = null;
@@ -333,10 +337,7 @@ export function CodeViewer({
           <span className="code-viewer__lang">{detectLanguage(activeFilePath)}</span>
         </div>
       </div>
-      {loading && (
-        <div className="code-viewer__loading">Loading...</div>
-      )}
-      {error && (
+{error && (
         <div className="code-viewer__error">{error}</div>
       )}
       <div className="code-viewer__editor" ref={containerRef} />
@@ -347,10 +348,8 @@ export function CodeViewer({
 async function loadFile(
   filePath: string,
   view: EditorView,
-  setLoading: (v: boolean) => void,
   setError: (v: string | null) => void,
 ): Promise<string> {
-  setLoading(true);
   setError(null);
 
   try {
@@ -369,7 +368,6 @@ async function loadFile(
       offset += result.content.length;
       isComplete = result.isComplete;
 
-      // Update editor with content so far
       view.dispatch({
         changes: {
           from: 0,
@@ -383,7 +381,5 @@ async function loadFile(
   } catch (err) {
     setError(`Failed to load file: ${err}`);
     throw err;
-  } finally {
-    setLoading(false);
   }
 }

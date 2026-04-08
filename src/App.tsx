@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } 
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
+import { useSwarmStore } from './state/swarmStore';
 import { useSettingsStore } from './state/settingsStore';
 import { applyTheme, getAllThemes } from './themes/themeEngine';
 import { findLeafIds, movePane, resizeAtPath, createCodeAndConsolePreset, createWebDevPreset, applyTemplate, splitHorizontal, splitVertical, closePane } from './state/layoutEngine';
@@ -17,11 +18,25 @@ import { CommandPalette, type PaletteAction } from './components/CommandPalette'
 import { SettingsPanel } from './components/SettingsPanel';
 import { ActivityBar, type SidePanelId } from './components/ActivityBar';
 import { SidePanel } from './components/SidePanel';
-import type { FileTreeEntry, PaneTemplate, Task, AgentPreset, PaneConfig } from './types';
+import type { FileTreeEntry, PaneTemplate, PaneConfig } from './types';
+import type { RunTaskRequest } from './components/TaskBoard';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
 import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
 import './App.css';
+
+function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
+  if (node.type === 'leaf') {
+    return { ...node, paneId: node.paneId === fromId ? toId : node.paneId };
+  }
+  return {
+    ...node,
+    children: [
+      replaceLeafPaneId(node.children[0], fromId, toId),
+      replaceLeafPaneId(node.children[1], fromId, toId),
+    ],
+  };
+}
 
 function App() {
   const [showPalette, setShowPalette] = useState(false);
@@ -62,6 +77,8 @@ function App() {
   } = useWorkspaceStore();
 
   const { settings } = useSettingsStore();
+  const pendingSwarmAgentPanes = useSwarmStore((s) => s.pendingAgentPanes);
+  const consumePendingAgentPane = useSwarmStore((s) => s.consumePendingAgentPane);
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const broadcastPaneIds = useMemo(
     () =>
@@ -255,31 +272,33 @@ function App() {
     [activeWorkspace, activeWorkspaceId],
   );
 
-  // Execute an agent preset from a Task board
-  const handleRunAgentTask = useCallback(
-    (sourcePaneId: string, task: Task, preset: AgentPreset) => {
-      if (!activeWorkspace) return;
-      
+  // Run an agent CLI command for a task — creates a new terminal pane and executes the command
+  const handleRunTaskCommand = useCallback(
+    ({ task, command, agentLabel }: RunTaskRequest) => {
+      if (!activeWorkspace || !activeWorkspaceId) return;
+
+      // Find a source pane to split from (prefer focused, fall back to first)
+      const sourcePaneId = focusedPaneId ?? activeWorkspace.panes[0]?.id;
+      if (!sourcePaneId) return;
+
       const newLayout = splitHorizontal(activeWorkspace.layout, sourcePaneId);
       const existingIds = new Set(findLeafIds(activeWorkspace.layout));
       const newIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
       const newPaneId = newIds[0];
 
       if (newPaneId) {
-        let command = preset.cli_command_template;
-        command = command.replace(/\{\{\s*task\.title\s*\}\}/g, task.title);
-        command = command.replace(/\{\{\s*task\.description\s*\}\}/g, task.description || '');
-
-        const pane = createDefaultPane(activeWorkspace.id);
+        const pane = createDefaultPane(activeWorkspaceId);
         pane.id = newPaneId;
         pane.type = 'terminal';
         pane.startupCommand = command;
         pane.autoLaunch = true;
         pane.workingDirectory = workspaceRoot || '.';
-        
+        pane.label = `${agentLabel}: ${task.title}`;
+        pane.taskId = task.id;
+
         useWorkspaceStore.setState((state) => ({
           workspaces: state.workspaces.map((ws) =>
-            ws.id === activeWorkspace.id
+            ws.id === activeWorkspaceId
               ? {
                   ...ws,
                   layout: newLayout,
@@ -291,8 +310,74 @@ function App() {
         setFocusedPaneId(newPaneId);
       }
     },
-    [activeWorkspace, workspaceRoot],
+    [activeWorkspace, activeWorkspaceId, focusedPaneId, workspaceRoot],
   );
+
+  const handleOpenSwarmAgentPane = useCallback(
+    (item: { agent: import('./types').SwarmAgent; workspaceId: string; sourcePaneId: string | null; projectPath: string }) => {
+      const state = useWorkspaceStore.getState();
+      const paneAlreadyExists = state.workspaces.some((workspace) =>
+        workspace.panes.some((pane) => pane.id === item.agent.pane_id),
+      );
+      if (paneAlreadyExists) {
+        consumePendingAgentPane(item.agent.pane_id);
+        return;
+      }
+
+      const targetWorkspace = state.workspaces.find((workspace) => workspace.id === item.workspaceId);
+      if (!targetWorkspace) {
+        consumePendingAgentPane(item.agent.pane_id);
+        return;
+      }
+
+      const sourcePaneId =
+        (item.sourcePaneId && targetWorkspace.panes.some((pane) => pane.id === item.sourcePaneId))
+          ? item.sourcePaneId
+          : targetWorkspace.panes[0]?.id;
+      if (!sourcePaneId) {
+        consumePendingAgentPane(item.agent.pane_id);
+        return;
+      }
+
+      const splitLayout = splitHorizontal(targetWorkspace.layout, sourcePaneId);
+      const existingIds = new Set(findLeafIds(targetWorkspace.layout));
+      const generatedPaneId = findLeafIds(splitLayout).find((id) => !existingIds.has(id));
+      if (!generatedPaneId) {
+        consumePendingAgentPane(item.agent.pane_id);
+        return;
+      }
+
+      const pane = createDefaultPane(item.workspaceId);
+      pane.id = item.agent.pane_id;
+      pane.type = 'terminal';
+      pane.workingDirectory = item.projectPath;
+      pane.startupCommand = item.agent.command;
+      pane.autoLaunch = true;
+      pane.label = item.agent.role;
+
+      useWorkspaceStore.setState((current) => ({
+        workspaces: current.workspaces.map((workspace) =>
+          workspace.id === item.workspaceId
+            ? {
+                ...workspace,
+                layout: replaceLeafPaneId(splitLayout, generatedPaneId, item.agent.pane_id),
+                panes: [...workspace.panes, pane],
+              }
+            : workspace,
+        ),
+      }));
+
+      if (item.workspaceId === activeWorkspaceId) {
+        setFocusedPaneId(item.agent.pane_id);
+      }
+      consumePendingAgentPane(item.agent.pane_id);
+    },
+    [activeWorkspaceId, consumePendingAgentPane],
+  );
+
+  useEffect(() => {
+    pendingSwarmAgentPanes.forEach(handleOpenSwarmAgentPane);
+  }, [pendingSwarmAgentPanes, handleOpenSwarmAgentPane]);
 
   // Update individual pane config (auto-launch, startup command)
   const handlePaneConfigChange = useCallback(
@@ -629,11 +714,14 @@ function App() {
           />
           <SidePanel
             activePanel={activePanel}
+            workspaceId={activeWorkspaceId}
+            focusedPaneId={focusedPaneId}
             rootPath={workspaceRoot}
             entries={projectFiles}
             activeFilePath={activeFilePath}
             onOpenFile={handleOpenFile}
             onRefresh={handleRefreshProjectFiles}
+            onRunTask={handleRunTaskCommand}
           />
           <div className="app__workspace">
             {showHome ? (
@@ -665,7 +753,7 @@ function App() {
                     broadcastWrite={workspace.id === activeWorkspaceId ? activeBroadcastWrite : undefined}
                     onPaneConfigChange={handlePaneConfigChange}
                     onMovePane={handleMovePane}
-                    onRunAgentTask={workspace.id === activeWorkspaceId ? handleRunAgentTask : undefined}
+                    onRunTask={workspace.id === activeWorkspaceId ? handleRunTaskCommand : undefined}
                     onOpenPalette={() => setShowPalette(true)}
                     themeId={settings.theme}
                   />

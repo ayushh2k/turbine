@@ -1,3 +1,9 @@
+// Board column definition for custom TaskBoard columns
+export interface BoardColumn {
+  id: string;
+  label: string;
+}
+
 // Workspace
 export interface Workspace {
   id: string;
@@ -6,6 +12,7 @@ export interface Workspace {
   tabOrder: number;
   layout: LayoutNode;
   isActive: boolean;
+  boardColumns: BoardColumn[] | null;
   panes: PaneConfig[];
 }
 
@@ -18,6 +25,8 @@ export interface PaneConfig {
   startupCommand: string | null;
   autoLaunch: boolean;
   envVars: Record<string, string>;
+  label: string | null;
+  taskId: string | null;
 }
 
 // Layout tree node
@@ -71,8 +80,15 @@ export interface ThemeDef {
   };
 }
 
-// Tasks
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+// Tasks — status is a free-form string so workspaces can define custom columns
+export type TaskStatus = string;
+
+export const DEFAULT_BOARD_COLUMNS: BoardColumn[] = [
+  { id: 'todo', label: 'To Do' },
+  { id: 'in_progress', label: 'In Progress' },
+  { id: 'review', label: 'Review' },
+  { id: 'done', label: 'Done' },
+];
 
 export interface Task {
   id: string;
@@ -85,8 +101,10 @@ export interface Task {
   updated_at?: string;
 }
 
-// Agent Presets
-export type AgentRole = 'Orchestrator' | 'Builder' | 'Reviewer' | 'Support';
+// Agent Presets — role is free-form so users can assign any role to any agent
+export type AgentRole = string;
+
+export const DEFAULT_AGENT_ROLES = ['Orchestrator', 'Builder', 'Reviewer', 'Support'] as const;
 
 export interface AgentPreset {
   id: string;
@@ -95,16 +113,44 @@ export interface AgentPreset {
   cli_command_template: string;
 }
 // Swarm orchestration
-export type SwarmStatus = 'Initializing' | 'Running' | 'Reviewing' | 'Completed' | 'Failed';
+export type SwarmStatus = 'Initializing' | 'Running' | 'Reviewing' | 'Completed' | 'Failed' | 'Paused';
 
 export interface SwarmRun {
   id: string;
-  task_id: string;
+  task_id: string | null;
   project_path: string;
   status: SwarmStatus;
   current_role: string | null;
+  prompt: string | null;
   started_at: string | null;
   updated_at: string | null;
+}
+
+export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface SwarmAgent {
+  id: string;
+  swarm_run_id: string;
+  preset_id: string | null;
+  pane_id: string;
+  role: string;
+  command: string;
+  status: AgentStatus;
+  exit_code: number | null;
+  output_summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface WorkflowStep {
+  id: string;
+  swarm_run_id: string;
+  step_order: number;
+  preset_id: string;
+  prompt_override: string | null;
+  depends_on_json: string;
+  status: string;
+  agent_id: string | null;
 }
 
 export interface MailboxMessage {

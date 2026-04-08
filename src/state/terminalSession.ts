@@ -33,7 +33,7 @@ export async function spawnPaneSession({
   cols,
   rows,
 }: SpawnPaneSessionOptions): Promise<void> {
-  await invoke('pty_spawn', {
+  const wasSpawned = await invoke<boolean>('pty_spawn', {
     paneId,
     cwd,
     env,
@@ -42,7 +42,8 @@ export async function spawnPaneSession({
     rows: normalizeDimension(rows, DEFAULT_TERMINAL_ROWS),
   });
 
-  if (!runStartupCommand || !startupCommand) {
+  // Only send startup command on a fresh spawn (not on remounts where PTY already exists)
+  if (!wasSpawned || !runStartupCommand || !startupCommand) {
     return;
   }
 

@@ -25,6 +25,8 @@ interface TerminalPaneProps {
   cwd?: string;
   env?: Record<string, string>;
   shell?: string | null;
+  startupCommand?: string | null;
+  autoLaunch?: boolean;
   onFocus?: () => void;
   broadcastWrite?: (data: Uint8Array) => void;
   themeId?: string;
@@ -40,6 +42,8 @@ function TerminalPaneInner({
   cwd = '.',
   env = {},
   shell = null,
+  startupCommand = null,
+  autoLaunch = false,
   onFocus,
   broadcastWrite,
   themeId,
@@ -206,8 +210,23 @@ function TerminalPaneInner({
       cwd,
       env,
       shell: effectiveShell,
+      startupCommand,
+      runStartupCommand: autoLaunch,
       cols: terminal.cols,
       rows: terminal.rows,
+    }).then(() => {
+      // Clear startup command after it runs so it doesn't re-execute on remount
+      // (layout tree changes from splits cause React to remount terminals)
+      if (autoLaunch && startupCommand) {
+        useWorkspaceStore.setState((s) => ({
+          workspaces: s.workspaces.map((w) => ({
+            ...w,
+            panes: w.panes.map((p) =>
+              p.id === paneId ? { ...p, autoLaunch: false, startupCommand: null } : p,
+            ),
+          })),
+        }));
+      }
     }).catch((err) => {
       setStatus(paneId, 'errored', null);
       terminal.writeln(`\r\n\x1b[31mFailed to spawn shell: ${err}\x1b[0m`);
@@ -355,7 +374,7 @@ function TerminalPaneInner({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [paneId, cwd, env, effectiveShell, removePaneSize, setPaneSize, setStatus, appendOutput, clearBlocks]);
+  }, [paneId, cwd, env, effectiveShell, startupCommand, autoLaunch, removePaneSize, setPaneSize, setStatus, appendOutput, clearBlocks]);
 
   const handleFocus = useCallback(() => {
     onFocus?.();

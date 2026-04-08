@@ -103,6 +103,7 @@ export function applyTheme(themeId: string): boolean {
   root.style.setProperty('--term-cursor', termColors.cursor);
 
   // Derived UI surface colors
+  root.style.setProperty('--pane-bg', colors.background);
   root.style.setProperty('--color-bg-secondary', colors.tabBar);
   root.style.setProperty('--color-bg-alt', `rgba(255, 255, 255, 0.02)`);
   root.style.setProperty('--color-border', `rgba(255, 255, 255, 0.08)`);

@@ -2,6 +2,7 @@ pub mod commands;
 pub mod db;
 pub mod file_ops;
 pub mod pty_manager;
+pub mod swarm_engine;
 pub mod types;
 
 use std::sync::Mutex;
@@ -53,8 +54,16 @@ pub fn run() {
             commands::get_git_diff,
             commands::save_swarm_run,
             commands::load_swarm_runs,
+            commands::delete_swarm_run,
             commands::save_mailbox_message,
             commands::load_mailbox_messages,
+            commands::swarm_spawn_agent,
+            commands::swarm_kill_agent,
+            commands::save_swarm_agent,
+            commands::load_swarm_agents,
+            commands::save_workflow_steps,
+            commands::load_workflow_steps,
+            swarm_engine::swarm_advance_run,
             commands::save_settings,
             commands::load_settings,
             commands::save_theme,

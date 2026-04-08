@@ -24,6 +24,15 @@ impl PtyManager {
             entries: Mutex::new(HashMap::new()),
         }
     }
+
+    /// Remove a PTY entry and kill its child process. Returns Ok if killed or not found.
+    pub fn kill_by_pane_id(&self, pane_id: &str) -> Result<(), String> {
+        let mut entries = self.entries.lock().map_err(|e| e.to_string())?;
+        if let Some(mut entry) = entries.remove(pane_id) {
+            entry.child.kill().map_err(|e| format!("Failed to kill PTY process: {e}"))?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -33,9 +42,9 @@ struct PtyOutputPayload {
 }
 
 #[derive(Clone, Serialize)]
-struct PtyExitPayload {
-    pane_id: String,
-    exit_code: Option<i32>,
+pub struct PtyExitPayload {
+    pub pane_id: String,
+    pub exit_code: Option<i32>,
 }
 
 /// Try to retrieve the exit code from a child process via the managed PtyManager state.
@@ -49,29 +58,28 @@ fn harvest_exit_code(handle: &AppHandle, pane_id: &str) -> Option<i32> {
     }
 }
 
-/// Spawn a new PTY process for the given pane.
+/// Internal spawn logic shared by `pty_spawn` (Tauri command) and programmatic callers
+/// like `swarm_spawn_agent`.
 ///
-/// - Uses the user's default shell if `shell` is None.
-/// - On macOS defaults to /bin/zsh, on Linux /bin/bash.
-/// - Spawns a reader thread that streams output via Tauri events.
-/// - If a PTY already exists for this pane_id, returns Ok immediately (no-op).
-#[tauri::command]
-pub fn pty_spawn(
+/// When `command` is `Some(cmd)`, the shell is invoked with `-c <cmd>` so the process
+/// runs the command and then exits naturally. When `None`, a bare interactive shell is spawned.
+pub fn spawn_pty_internal(
     pane_id: String,
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
     shell: Option<String>,
+    command: Option<String>,
     cols: Option<u16>,
     rows: Option<u16>,
-    pty_state: State<'_, PtyManager>,
+    pty_mgr: &PtyManager,
     app_handle: AppHandle,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     // If a PTY already exists for this pane (e.g. component remount after layout
     // restructure), skip spawning to keep the existing session alive.
     {
-        let entries = pty_state.entries.lock().map_err(|e| e.to_string())?;
+        let entries = pty_mgr.entries.lock().map_err(|e| e.to_string())?;
         if entries.contains_key(&pane_id) {
-            return Ok(());
+            return Ok(false);
         }
     }
 
@@ -98,6 +106,12 @@ pub fn pty_spawn(
     });
 
     let mut cmd = CommandBuilder::new(&shell_path);
+
+    // If a command is provided, run it via shell -c
+    if let Some(ref command_str) = command {
+        cmd.arg("-c");
+        cmd.arg(command_str);
+    }
 
     if let Some(dir) = &cwd {
         cmd.cwd(dir);
@@ -128,7 +142,7 @@ pub fn pty_spawn(
 
     // Store entry in managed state
     {
-        let mut entries = pty_state.entries.lock().map_err(|e| e.to_string())?;
+        let mut entries = pty_mgr.entries.lock().map_err(|e| e.to_string())?;
         entries.insert(
             pane_id.clone(),
             PtyEntry {
@@ -183,7 +197,37 @@ pub fn pty_spawn(
         }
     });
 
-    Ok(())
+    Ok(true)
+}
+
+/// Spawn a new PTY process for the given pane.
+///
+/// - Uses the user's default shell if `shell` is None.
+/// - On macOS defaults to /bin/zsh, on Linux /bin/bash.
+/// - Spawns a reader thread that streams output via Tauri events.
+/// - If a PTY already exists for this pane_id, returns Ok immediately (no-op).
+#[tauri::command]
+pub fn pty_spawn(
+    pane_id: String,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    shell: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    pty_state: State<'_, PtyManager>,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    spawn_pty_internal(
+        pane_id,
+        cwd,
+        env,
+        shell,
+        None, // no command — interactive shell
+        cols,
+        rows,
+        &pty_state,
+        app_handle,
+    )
 }
 
 /// Write input data to a PTY's master writer.

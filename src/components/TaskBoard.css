@@ -18,6 +18,69 @@
   gap: 12px;
 }
 
+.task-board__add-col-btn {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-fg-muted);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.task-board__add-col-btn:hover {
+  background: rgba(0, 229, 200, 0.1);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.task-board__add-col-form {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--pane-border);
+  background: rgba(0, 229, 200, 0.03);
+}
+
+.task-board__add-col-form input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-fg);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+  outline: none;
+}
+
+.task-board__add-col-form input:focus {
+  border-color: var(--color-accent);
+}
+
+.task-board__add-col-form button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-fg);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.task-board__add-col-form button[type="submit"]:hover {
+  background: rgba(0, 229, 200, 0.15);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.task-board__add-col-form button[type="button"]:hover {
+  background: rgba(255, 50, 50, 0.1);
+  border-color: rgba(255, 50, 50, 0.3);
+}
+
 .task-board__title {
   margin: 0;
   font-size: 14px;
@@ -52,12 +115,13 @@
   border-radius: 6px;
   border: 1px solid transparent;
   max-height: 100%;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
 .task-board__column--drag-over {
   border-color: var(--color-accent);
-  background: rgba(0, 229, 200, 0.05);
+  background: rgba(0, 229, 200, 0.06);
+  box-shadow: 0 0 0 1px var(--color-accent), inset 0 0 16px rgba(0, 229, 200, 0.04);
 }
 
 .task-board__column-header {
@@ -76,12 +140,37 @@
   color: var(--color-fg-muted);
 }
 
+.task-board__column-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .task-board__count {
   font-size: 10px;
   background: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
   border-radius: 999px;
   color: var(--color-fg);
+}
+
+.task-board__col-del-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-fg-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.task-board__column:hover .task-board__col-del-btn {
+  opacity: 1;
+}
+
+.task-board__col-del-btn:hover {
+  color: var(--color-error, #ff5c5c);
 }
 
 .task-board__list {
@@ -135,10 +224,92 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
+.task-board__card--editing {
+  cursor: default;
+  border-color: var(--color-accent);
+}
+
 .task-board__card-title {
   font-size: 12px;
   line-height: 1.4;
   color: var(--color-fg);
+}
+
+.task-board__card-desc {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-fg-muted);
+  white-space: pre-wrap;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.task-board__card-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-board__edit-title {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--color-fg);
+  border-radius: 3px;
+  padding: 5px 7px;
+  font-size: 12px;
+  outline: none;
+}
+
+.task-board__edit-title:focus {
+  border-color: var(--color-accent);
+}
+
+.task-board__edit-desc {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--color-fg);
+  border-radius: 3px;
+  padding: 5px 7px;
+  font-size: 11px;
+  outline: none;
+  resize: vertical;
+  min-height: 40px;
+  font-family: inherit;
+}
+
+.task-board__edit-desc:focus {
+  border-color: var(--color-accent);
+}
+
+.task-board__edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.task-board__edit-save,
+.task-board__edit-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-fg);
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.task-board__edit-save:hover {
+  background: rgba(0, 229, 200, 0.15);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.task-board__edit-cancel:hover {
+  background: rgba(255, 50, 50, 0.1);
+  border-color: rgba(255, 50, 50, 0.3);
 }
 
 .task-board__card-actions {
@@ -174,7 +345,7 @@
 .task-board__del-btn:hover {
   background: rgba(255, 50, 50, 0.15);
   border-color: rgba(255, 50, 50, 0.3);
-  color: #ff5c5c;
+  color: var(--color-error, #ff5c5c);
 }
 
 /* Scrollbars for board lists */
@@ -249,7 +420,7 @@
 
 /* ---- Side-panel compact layout ---- */
 .side-panel .task-board {
-  background: var(--tab-bar-bg, #081422);
+  background: var(--tab-bar-bg, var(--color-bg));
 }
 
 .side-panel .task-board__header {

@@ -28,7 +28,7 @@
   --pane-toolbar-bg: rgba(8, 20, 34, 0.92);
   --pane-toolbar-fg: #6b8a9e;
   --pane-toolbar-hover: #00e5c8;
-  --pane-bg: #0b1929;
+  --pane-bg: var(--color-bg, #0b1929);
 
   /* Context menu */
   --ctx-menu-bg: #0f2137;

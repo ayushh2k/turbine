@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { LayoutNode, PaneConfig, Task, AgentPreset } from '../types';
+import type { LayoutNode, PaneConfig } from '../types';
+import type { RunTaskRequest } from './TaskBoard';
 import { HomeScreen } from './HomeScreen';
 import { TerminalPane } from './TerminalPane';
 import { CodeViewer } from './CodeViewer';
@@ -13,6 +14,7 @@ import { usePaneStatus } from '../hooks/usePtyStatus';
 import './PaneContainer.css';
 
 function getPaneLabel(pane: PaneConfig): string {
+  if (pane.label) return pane.label;
   const filename = pane.workingDirectory?.replace(/\\/g, '/').split('/').pop();
   switch (pane.type) {
     case 'terminal': return 'Terminal';
@@ -37,7 +39,7 @@ interface PaneContainerProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
-  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
+  onRunTask?: (req: RunTaskRequest) => void;
   onDetachPane?: (paneId: string) => void;
   onOpenPalette?: () => void;
   themeId?: string;
@@ -55,7 +57,7 @@ export function PaneContainer({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
-  onRunAgentTask,
+  onRunTask,
   onDetachPane,
   onOpenPalette,
   themeId,
@@ -76,7 +78,7 @@ export function PaneContainer({
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
-        onRunAgentTask={onRunAgentTask}
+        onRunTask={onRunTask}
         onOpenPalette={onOpenPalette}
         themeId={themeId}
       />
@@ -97,7 +99,7 @@ interface LayoutRendererProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
-  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
+  onRunTask?: (req: RunTaskRequest) => void;
   onDetachPane?: (paneId: string) => void;
   onOpenPalette?: () => void;
   themeId?: string;
@@ -117,7 +119,7 @@ function LayoutRenderer({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
-  onRunAgentTask,
+  onRunTask,
   onOpenPalette,
   themeId,
 }: LayoutRendererProps) {
@@ -135,7 +137,7 @@ function LayoutRenderer({
         broadcastWrite={broadcastWrite}
         onPaneConfigChange={onPaneConfigChange}
         onMovePane={onMovePane}
-        onRunAgentTask={onRunAgentTask}
+        onRunTask={onRunTask}
         onOpenPalette={onOpenPalette}
         themeId={themeId}
       />
@@ -167,7 +169,7 @@ function LayoutRenderer({
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
-          onRunAgentTask={onRunAgentTask}
+          onRunTask={onRunTask}
           onOpenPalette={onOpenPalette}
           themeId={themeId}
         />
@@ -193,7 +195,7 @@ function LayoutRenderer({
           broadcastWrite={broadcastWrite}
           onPaneConfigChange={onPaneConfigChange}
           onMovePane={onMovePane}
-          onRunAgentTask={onRunAgentTask}
+          onRunTask={onRunTask}
           onOpenPalette={onOpenPalette}
           themeId={themeId}
         />
@@ -214,7 +216,7 @@ interface LeafPaneProps {
   broadcastWrite?: (data: Uint8Array) => void;
   onPaneConfigChange?: (paneId: string, changes: Partial<PaneConfig>) => void;
   onMovePane?: (fromId: string, toId: string) => void;
-  onRunAgentTask?: (sourcePaneId: string, task: Task, preset: AgentPreset) => void;
+  onRunTask?: (req: RunTaskRequest) => void;
   onOpenPalette?: () => void;
   themeId?: string;
 }
@@ -231,7 +233,7 @@ function LeafPane({
   broadcastWrite,
   onPaneConfigChange,
   onMovePane,
-  onRunAgentTask,
+  onRunTask,
   onOpenPalette,
   themeId,
 }: LeafPaneProps) {
@@ -375,6 +377,8 @@ function LeafPane({
           paneId={paneId}
           cwd={pane.workingDirectory}
           env={pane.envVars}
+          startupCommand={pane.startupCommand}
+          autoLaunch={pane.autoLaunch}
           onFocus={handleFocusPane}
           broadcastWrite={broadcastWrite}
           themeId={themeId}
@@ -395,18 +399,9 @@ function LeafPane({
       {pane?.type === 'task_board' && pane.workingDirectory && (
         <TaskBoard
           projectPath={pane.workingDirectory}
+          workspaceId={pane.workspaceId}
           onFocus={handleFocusPane}
-          onRunTask={
-            onRunAgentTask
-              ? (task, preset) => {
-                  if (preset) {
-                    onRunAgentTask(paneId, task, preset);
-                  } else {
-                    handleSplitH();
-                  }
-                }
-              : undefined
-          }
+          onRunTask={onRunTask}
         />
       )}
       {pane?.type === 'media_viewer' && pane.workingDirectory && (
@@ -424,6 +419,8 @@ function LeafPane({
       {pane?.type === 'swarm_panel' && pane.workingDirectory && (
         <SwarmPanel
           projectPath={pane.workingDirectory}
+          workspaceId={pane.workspaceId}
+          sourcePaneId={paneId}
           onFocus={handleFocusPane}
         />
       )}

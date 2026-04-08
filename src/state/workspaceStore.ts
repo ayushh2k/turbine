@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Workspace, PaneConfig, LayoutNode } from '../types';
+import type { Workspace, PaneConfig, LayoutNode, BoardColumn } from '../types';
 import { findLeafIds, closePane } from './layoutEngine';
 
 interface WorkspaceState {
@@ -17,6 +17,7 @@ interface WorkspaceState {
   switchWorkspace: (id: string) => void;
   reorderWorkspaces: (fromIndex: number, toIndex: number) => void;
   setWorkspaceColor: (id: string, color: string) => void;
+  setBoardColumns: (workspaceId: string, columns: BoardColumn[]) => void;
   setBroadcastMode: (active: boolean) => void;
   setBroadcastTargets: (targets: Set<string>) => void;
   detachPane: (workspaceId: string, paneId: string) => void;
@@ -33,6 +34,8 @@ function createDefaultPane(workspaceId: string): PaneConfig {
     startupCommand: null,
     autoLaunch: false,
     envVars: {},
+    label: null,
+    taskId: null,
   };
 }
 
@@ -46,6 +49,8 @@ function createDefaultWorkspace(name: string): Workspace {
     startupCommand: null,
     autoLaunch: false,
     envVars: {},
+    label: null,
+    taskId: null,
   };
   const layout: LayoutNode = { type: 'leaf', paneId: pane.id };
 
@@ -56,6 +61,7 @@ function createDefaultWorkspace(name: string): Workspace {
     tabOrder: 0,
     layout,
     isActive: false,
+    boardColumns: null,
     panes: [pane],
   };
 }
@@ -81,6 +87,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startupCommand: null,
         autoLaunch: false,
         envVars: {},
+        label: null,
+        taskId: null,
       }));
       workspace = {
         ...workspace,
@@ -187,6 +195,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tabOrder: workspaces.length,
       layout: { type: 'leaf', paneId: paneConfig.id },
       isActive: false,
+      boardColumns: null,
       panes: [paneConfig],
     };
 
@@ -242,6 +251,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }));
   },
 
+  setBoardColumns: (workspaceId: string, columns: BoardColumn[]) => {
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === workspaceId ? { ...w, boardColumns: columns } : w
+      ),
+    }));
+  },
+
   setBroadcastMode: (active: boolean) => {
     set(() => ({ broadcastMode: active }));
   },
@@ -261,6 +278,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           tab_order: workspace.tabOrder,
           layout_json: JSON.stringify(workspace.layout),
           is_active: workspace.id === get().activeWorkspaceId,
+          board_columns_json: workspace.boardColumns ? JSON.stringify(workspace.boardColumns) : null,
           panes: workspace.panes.map((p) => ({
             id: p.id,
             workspace_id: p.workspaceId,
@@ -283,6 +301,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tab_order: number;
       layout_json: string;
       is_active: boolean;
+      board_columns_json: string | null;
       panes: Array<{
         id: string;
         workspace_id: string;
@@ -296,7 +315,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     const workspaces: Workspace[] = rawWorkspaces.map((raw) => {
       let layout = JSON.parse(raw.layout_json) as LayoutNode;
-      let panes = raw.panes.map((p) => ({
+      let panes: PaneConfig[] = raw.panes.map((p) => ({
         id: p.id,
         workspaceId: p.workspace_id,
         type: p.pane_type as PaneConfig['type'],
@@ -304,6 +323,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startupCommand: p.startup_command,
         autoLaunch: p.auto_launch,
         envVars: p.env_vars,
+        label: null,
+        taskId: null,
       }));
 
       if (panes.length === 0) {
@@ -334,6 +355,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         }
       }
 
+      const boardColumns: BoardColumn[] | null = raw.board_columns_json
+        ? JSON.parse(raw.board_columns_json)
+        : null;
+
       return {
         id: raw.id,
         name: raw.name,
@@ -341,6 +366,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         tabOrder: raw.tab_order,
         layout,
         isActive: raw.is_active,
+        boardColumns,
         panes,
       };
     });

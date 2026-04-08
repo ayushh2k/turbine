@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { FileBrowser } from './FileBrowser';
-import { TaskBoard } from './TaskBoard';
+import { TaskBoard, type RunTaskRequest } from './TaskBoard';
 import { SwarmPanel } from './SwarmPanel';
 import type { FileTreeEntry } from '../types';
 import type { SidePanelId } from './ActivityBar';
@@ -12,20 +12,26 @@ const DEFAULT_WIDTH = 240;
 
 interface SidePanelProps {
   activePanel: SidePanelId | null;
+  workspaceId: string | null;
+  focusedPaneId: string | null;
   rootPath: string | null;
   entries: FileTreeEntry[];
   activeFilePath?: string | null;
   onOpenFile: (path: string) => void;
   onRefresh?: () => void;
+  onRunTask?: (req: RunTaskRequest) => void;
 }
 
 export function SidePanel({
   activePanel,
+  workspaceId,
+  focusedPaneId,
   rootPath,
   entries,
   activeFilePath,
   onOpenFile,
   onRefresh,
+  onRunTask,
 }: SidePanelProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [dragging, setDragging] = useState(false);
@@ -76,13 +82,13 @@ export function SidePanel({
           />
         )}
         {activePanel === 'tasks' && rootPath && (
-          <TaskBoard projectPath={rootPath} />
+          <TaskBoard projectPath={rootPath} workspaceId={workspaceId ?? ''} onRunTask={onRunTask} />
         )}
         {activePanel === 'tasks' && !rootPath && (
           <div className="side-panel__placeholder">Open a folder to see tasks.</div>
         )}
         {activePanel === 'swarm' && rootPath && (
-          <SwarmPanel projectPath={rootPath} />
+          <SwarmPanel projectPath={rootPath} workspaceId={workspaceId ?? ''} sourcePaneId={focusedPaneId} />
         )}
         {activePanel === 'swarm' && !rootPath && (
           <div className="side-panel__placeholder">Open a folder to see swarm runs.</div>

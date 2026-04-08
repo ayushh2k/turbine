@@ -21,6 +21,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
             tab_order INTEGER NOT NULL DEFAULT 0,
             layout_json TEXT NOT NULL,
             is_active INTEGER NOT NULL DEFAULT 0,
+            board_columns_json TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -58,7 +59,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
             project_path TEXT NOT NULL,
             title TEXT NOT NULL,
             description TEXT,
-            status TEXT NOT NULL CHECK(status IN ('todo', 'in_progress', 'review', 'done')),
+            status TEXT NOT NULL DEFAULT 'todo',
             linked_files_json TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -69,24 +70,49 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS agent_presets (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('Orchestrator', 'Builder', 'Reviewer', 'Support')),
+            role TEXT NOT NULL,
             cli_command_template TEXT NOT NULL
         );
 
-        INSERT OR IGNORE INTO agent_presets (id, name, role, cli_command_template) VALUES 
-        ('default_codex', 'Codex Builder', 'Builder', 'codex \"Solve task: {{task.title}}. {{task.description}}\"'),
-        ('default_claude', 'Claude Orchestrator', 'Orchestrator', 'claude \"Plan and execute: {{task.title}}. Breakdown: {{task.description}}\"'),
-        ('default_gemini', 'Gemini Reviewer', 'Reviewer', 'gemini \"Review these changes for task: {{task.title}}\"'),
-        ('default_kiro', 'Kiro CLI Support', 'Support', 'kiro run \"{{task.title}}\" --context \"{{task.description}}\"');
+        INSERT OR IGNORE INTO agent_presets (id, name, role, cli_command_template) VALUES
+        ('default_claude', 'Claude Code', 'Builder', 'claude -p \"{{task.title}}. {{task.description}}\"'),
+        ('default_gemini', 'Gemini CLI', 'Builder', 'gemini -p \"{{task.title}}. {{task.description}}\"'),
+        ('default_codex', 'Codex', 'Builder', 'codex \"{{task.title}}. {{task.description}}\"');
 
         CREATE TABLE IF NOT EXISTS swarm_runs (
             id TEXT PRIMARY KEY,
-            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
             project_path TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('Initializing', 'Running', 'Reviewing', 'Completed', 'Failed')),
+            status TEXT NOT NULL DEFAULT 'Initializing',
             current_role TEXT,
+            prompt TEXT,
             started_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS swarm_agents (
+            id TEXT PRIMARY KEY,
+            swarm_run_id TEXT NOT NULL REFERENCES swarm_runs(id) ON DELETE CASCADE,
+            preset_id TEXT REFERENCES agent_presets(id) ON DELETE SET NULL,
+            pane_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            command TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            exit_code INTEGER,
+            output_summary TEXT,
+            started_at TEXT,
+            completed_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS workflow_steps (
+            id TEXT PRIMARY KEY,
+            swarm_run_id TEXT NOT NULL REFERENCES swarm_runs(id) ON DELETE CASCADE,
+            step_order INTEGER NOT NULL,
+            preset_id TEXT NOT NULL REFERENCES agent_presets(id) ON DELETE CASCADE,
+            prompt_override TEXT,
+            depends_on_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'pending',
+            agent_id TEXT REFERENCES swarm_agents(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS mailbox_messages (
@@ -100,6 +126,179 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
     )
 }
 
+/// Runs lightweight migrations for schema changes on existing databases.
+fn run_migrations(conn: &Connection) -> SqliteResult<()> {
+    // Migration 1: Add board_columns_json to workspaces if missing
+    let has_col: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('workspaces') WHERE name = 'board_columns_json'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_col {
+        conn.execute_batch("ALTER TABLE workspaces ADD COLUMN board_columns_json TEXT;")?;
+    }
+
+    // Migration 2: Make swarm_runs.task_id nullable (recreate table)
+    let task_id_notnull: bool = conn
+        .prepare("SELECT \"notnull\" FROM pragma_table_info('swarm_runs') WHERE name = 'task_id'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|v| v != 0)
+        .unwrap_or(false);
+
+    if task_id_notnull {
+        conn.execute_batch(
+            "
+            CREATE TABLE swarm_runs_new (
+                id TEXT PRIMARY KEY,
+                task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+                project_path TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('Initializing', 'Running', 'Reviewing', 'Completed', 'Failed')),
+                current_role TEXT,
+                started_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO swarm_runs_new SELECT * FROM swarm_runs;
+            DROP TABLE swarm_runs;
+            ALTER TABLE swarm_runs_new RENAME TO swarm_runs;
+            "
+        )?;
+    }
+
+    // Migration 3: Remove CHECK constraint on tasks.status (recreate table)
+    // Check if the old CHECK constraint exists by looking at the table SQL
+    let table_sql: String = conn
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")?
+        .query_row([], |row| row.get::<_, String>(0))
+        .unwrap_or_default();
+
+    if table_sql.contains("CHECK") {
+        conn.execute_batch(
+            "
+            CREATE TABLE tasks_new (
+                id TEXT PRIMARY KEY,
+                project_path TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT NOT NULL DEFAULT 'todo',
+                linked_files_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO tasks_new SELECT * FROM tasks;
+            DROP TABLE tasks;
+            ALTER TABLE tasks_new RENAME TO tasks;
+            CREATE INDEX IF NOT EXISTS idx_tasks_project_path ON tasks(project_path);
+            "
+        )?;
+    }
+
+    // Migration 4: Remove CHECK constraint on agent_presets.role (allow custom roles)
+    let presets_sql: String = conn
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_presets'")?
+        .query_row([], |row| row.get::<_, String>(0))
+        .unwrap_or_default();
+
+    if presets_sql.contains("CHECK") {
+        conn.execute_batch(
+            "
+            CREATE TABLE agent_presets_new (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                role TEXT NOT NULL,
+                cli_command_template TEXT NOT NULL
+            );
+            INSERT INTO agent_presets_new SELECT * FROM agent_presets;
+            DROP TABLE agent_presets;
+            ALTER TABLE agent_presets_new RENAME TO agent_presets;
+            "
+        )?;
+    }
+
+    // Migration 5: Add prompt column to swarm_runs and remove CHECK constraint on status
+    let swarm_sql: String = conn
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='swarm_runs'")?
+        .query_row([], |row| row.get::<_, String>(0))
+        .unwrap_or_default();
+
+    let needs_prompt = !swarm_sql.contains("prompt");
+    let needs_check_removal = swarm_sql.contains("CHECK");
+
+    if needs_prompt || needs_check_removal {
+        conn.execute_batch(
+            "
+            CREATE TABLE swarm_runs_v2 (
+                id TEXT PRIMARY KEY,
+                task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+                project_path TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Initializing',
+                current_role TEXT,
+                prompt TEXT,
+                started_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO swarm_runs_v2 (id, task_id, project_path, status, current_role, started_at, updated_at)
+                SELECT id, task_id, project_path, status, current_role, started_at, updated_at FROM swarm_runs;
+            DROP TABLE swarm_runs;
+            ALTER TABLE swarm_runs_v2 RENAME TO swarm_runs;
+            "
+        )?;
+    }
+
+    // Migration 6: Create swarm_agents table if missing
+    let has_swarm_agents: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='swarm_agents'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_swarm_agents {
+        conn.execute_batch(
+            "
+            CREATE TABLE swarm_agents (
+                id TEXT PRIMARY KEY,
+                swarm_run_id TEXT NOT NULL REFERENCES swarm_runs(id) ON DELETE CASCADE,
+                preset_id TEXT REFERENCES agent_presets(id) ON DELETE SET NULL,
+                pane_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                command TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                exit_code INTEGER,
+                output_summary TEXT,
+                started_at TEXT,
+                completed_at TEXT
+            );
+            "
+        )?;
+    }
+
+    // Migration 7: Create workflow_steps table if missing
+    let has_workflow_steps: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='workflow_steps'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_workflow_steps {
+        conn.execute_batch(
+            "
+            CREATE TABLE workflow_steps (
+                id TEXT PRIMARY KEY,
+                swarm_run_id TEXT NOT NULL REFERENCES swarm_runs(id) ON DELETE CASCADE,
+                step_order INTEGER NOT NULL,
+                preset_id TEXT NOT NULL REFERENCES agent_presets(id) ON DELETE CASCADE,
+                prompt_override TEXT,
+                depends_on_json TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL DEFAULT 'pending',
+                agent_id TEXT REFERENCES swarm_agents(id) ON DELETE SET NULL
+            );
+            "
+        )?;
+    }
+
+    Ok(())
+}
+
 /// Opens or creates the SQLite database at the given path.
 ///
 /// If the database is corrupt or tables cannot be created, the file is deleted
@@ -108,7 +307,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
 pub fn init_db(db_path: &Path) -> Result<DbInitResult, String> {
     // First attempt: open existing or create new
     match Connection::open(db_path) {
-        Ok(conn) => match create_tables(&conn) {
+        Ok(conn) => match create_tables(&conn).and_then(|()| run_migrations(&conn)) {
             Ok(()) => Ok(DbInitResult {
                 connection: conn,
                 was_recreated: false,
@@ -129,6 +328,7 @@ fn recreate_db(db_path: &Path) -> Result<DbInitResult, String> {
     let conn =
         Connection::open(db_path).map_err(|e| format!("Failed to create fresh DB: {e}"))?;
     create_tables(&conn).map_err(|e| format!("Failed to create tables in fresh DB: {e}"))?;
+    run_migrations(&conn).map_err(|e| format!("Failed to run migrations in fresh DB: {e}"))?;
 
     Ok(DbInitResult {
         connection: conn,

@@ -9,6 +9,7 @@ pub struct WorkspaceConfig {
     pub tab_order: i32,
     pub layout_json: String, // serialized LayoutNode
     pub is_active: bool,
+    pub board_columns_json: Option<String>,
     pub panes: Vec<PaneConfig>,
 }
 
@@ -40,6 +41,7 @@ pub struct CustomThemeRecord {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct FileContent {
     pub content: String,
     pub total_size: u64,
@@ -77,12 +79,40 @@ pub struct AgentPreset {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SwarmRun {
     pub id: String,
-    pub task_id: String,
+    pub task_id: Option<String>,
     pub project_path: String,
-    pub status: String, // "Initializing" | "Running" | "Reviewing" | "Completed" | "Failed"
+    pub status: String, // "Initializing" | "Running" | "Reviewing" | "Completed" | "Failed" | "Paused"
     pub current_role: Option<String>,
+    pub prompt: Option<String>,
     pub started_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SwarmAgent {
+    pub id: String,
+    pub swarm_run_id: String,
+    pub preset_id: Option<String>,
+    pub pane_id: String,
+    pub role: String,
+    pub command: String,
+    pub status: String, // "pending" | "running" | "completed" | "failed" | "cancelled"
+    pub exit_code: Option<i32>,
+    pub output_summary: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct WorkflowStep {
+    pub id: String,
+    pub swarm_run_id: String,
+    pub step_order: i32,
+    pub preset_id: String,
+    pub prompt_override: Option<String>,
+    pub depends_on_json: String,
+    pub status: String, // "pending" | "running" | "completed" | "failed" | "skipped"
+    pub agent_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { create } from 'zustand';
 import { useSettingsStore } from '../state/settingsStore';
+import { useWorkspaceStore } from '../state/workspaceStore';
+import { useTaskStore } from '../state/taskStore';
 import { spawnPaneSession } from '../state/terminalSession';
 
 export type PaneProcessStatus = 'running' | 'exited' | 'errored';
@@ -107,6 +109,21 @@ export function usePtyStatusListener() {
       const status: PaneProcessStatus =
         exit_code === null || exit_code !== 0 ? 'errored' : 'exited';
       setStatus(pane_id, status, exit_code);
+
+      // Auto-move linked task to "done" on successful exit
+      if (exit_code === 0) {
+        const ws = useWorkspaceStore.getState();
+        for (const workspace of ws.workspaces) {
+          const pane = workspace.panes.find((p) => p.id === pane_id);
+          if (pane?.taskId) {
+            const task = useTaskStore.getState().tasks.find((t) => t.id === pane.taskId);
+            if (task && task.status !== 'done') {
+              void useTaskStore.getState().updateTask({ ...task, status: 'done' });
+            }
+            break;
+          }
+        }
+      }
     }).then((fn) => {
       if (disposed) {
         fn();
