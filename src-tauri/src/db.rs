@@ -413,4 +413,592 @@ mod tests {
         let r2 = init_db(&db_path).unwrap();
         assert!(!r2.was_recreated);
     }
+
+    // -----------------------------------------------------------------------
+    // Property-based tests (proptest)
+    // -----------------------------------------------------------------------
+
+    use crate::types::{AppSettings, CustomThemeRecord, PaneConfig, WorkspaceConfig};
+    use proptest::prelude::*;
+    use std::collections::HashMap;
+
+    /// Valid pane types accepted by the CHECK constraint.
+    const PANE_TYPES: &[&str] = &[
+        "home",
+        "terminal",
+        "code_viewer",
+        "media_viewer",
+        "task_board",
+        "diff_viewer",
+        "swarm_panel",
+    ];
+
+    /// Helper: create a fresh in-memory database with all tables.
+    fn fresh_db() -> rusqlite::Connection {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("prop.db");
+        let result = init_db(&db_path).unwrap();
+        // We need to keep the tempdir alive, but since Connection owns the
+        // file handle we can leak the dir (tests are short-lived).
+        std::mem::forget(dir);
+        result.connection
+    }
+
+    /// Save a WorkspaceConfig directly via SQL (mirrors commands.rs logic).
+    fn save_workspace_sql(
+        conn: &rusqlite::Connection,
+        ws: &WorkspaceConfig,
+    ) -> Result<(), String> {
+        conn.execute(
+            "INSERT INTO workspaces (id, name, tab_color, tab_order, layout_json, is_active, board_columns_json, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                tab_color = excluded.tab_color,
+                tab_order = excluded.tab_order,
+                layout_json = excluded.layout_json,
+                is_active = excluded.is_active,
+                board_columns_json = excluded.board_columns_json,
+                updated_at = datetime('now')",
+            rusqlite::params![
+                ws.id,
+                ws.name,
+                ws.tab_color,
+                ws.tab_order,
+                ws.layout_json,
+                ws.is_active as i32,
+                ws.board_columns_json,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "DELETE FROM panes WHERE workspace_id = ?1",
+            rusqlite::params![ws.id],
+        )
+        .map_err(|e| e.to_string())?;
+
+        for pane in &ws.panes {
+            let env_json =
+                serde_json::to_string(&pane.env_vars).map_err(|e| e.to_string())?;
+            conn.execute(
+                "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    pane.id,
+                    pane.workspace_id,
+                    pane.pane_type,
+                    pane.working_directory,
+                    pane.startup_command,
+                    pane.auto_launch as i32,
+                    env_json,
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    /// Load all workspaces directly via SQL (mirrors commands.rs logic).
+    fn load_workspaces_sql(
+        conn: &rusqlite::Connection,
+    ) -> Result<Vec<WorkspaceConfig>, String> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, name, tab_color, tab_order, layout_json, is_active, board_columns_json
+                 FROM workspaces ORDER BY tab_order",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, i32>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i32>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut workspaces = Vec::new();
+        for row_result in rows {
+            let (id, name, tab_color, tab_order, layout_json, is_active, board_columns_json) =
+                row_result.map_err(|e| e.to_string())?;
+
+            let panes = load_panes_sql(conn, &id)?;
+
+            workspaces.push(WorkspaceConfig {
+                id,
+                name,
+                tab_color,
+                tab_order,
+                layout_json,
+                is_active: is_active != 0,
+                board_columns_json,
+                panes,
+            });
+        }
+
+        Ok(workspaces)
+    }
+
+    fn load_panes_sql(
+        conn: &rusqlite::Connection,
+        workspace_id: &str,
+    ) -> Result<Vec<PaneConfig>, String> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json
+                 FROM panes WHERE workspace_id = ?1",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![workspace_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, i32>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut panes = Vec::new();
+        for pane_result in rows {
+            let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json) =
+                pane_result.map_err(|e| e.to_string())?;
+
+            let env_vars: HashMap<String, String> = env_vars_json
+                .as_deref()
+                .map(|json| serde_json::from_str(json).unwrap_or_default())
+                .unwrap_or_default();
+
+            panes.push(PaneConfig {
+                id,
+                workspace_id: ws_id,
+                pane_type,
+                working_directory,
+                startup_command,
+                auto_launch: auto_launch != 0,
+                env_vars,
+            });
+        }
+
+        Ok(panes)
+    }
+
+    /// Save settings directly via SQL (mirrors commands.rs logic).
+    fn save_settings_sql(
+        conn: &rusqlite::Connection,
+        settings: &AppSettings,
+    ) -> Result<(), String> {
+        let pairs: Vec<(&str, String)> = vec![
+            ("theme", settings.theme.clone()),
+            (
+                "default_shell",
+                settings.default_shell.clone().unwrap_or_default(),
+            ),
+            ("agent_launch_delay", settings.agent_launch_delay.to_string()),
+            (
+                "terminal_scrollback_lines",
+                settings.terminal_scrollback_lines.to_string(),
+            ),
+        ];
+
+        for (key, value) in pairs {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![key, value],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        conn.execute("DELETE FROM keybindings", [])
+            .map_err(|e| e.to_string())?;
+
+        for (action, binding) in &settings.custom_keybindings {
+            conn.execute(
+                "INSERT INTO keybindings (action, binding) VALUES (?1, ?2)
+                 ON CONFLICT(action) DO UPDATE SET binding = excluded.binding",
+                rusqlite::params![action, binding],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    /// Load settings directly via SQL (mirrors commands.rs logic).
+    fn load_settings_sql(
+        conn: &rusqlite::Connection,
+    ) -> Result<AppSettings, String> {
+        let get = |key: &str| -> Result<Option<String>, String> {
+            let mut stmt = conn
+                .prepare("SELECT value FROM settings WHERE key = ?1")
+                .map_err(|e| e.to_string())?;
+            let result = stmt
+                .query_row(rusqlite::params![key], |row| row.get::<_, String>(0))
+                .ok();
+            Ok(result)
+        };
+
+        let theme = get("theme")?.unwrap_or_else(|| "subnautica".to_string());
+        let default_shell = get("default_shell")?.filter(|s| !s.is_empty());
+        let agent_launch_delay = get("agent_launch_delay")?
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(500);
+        let terminal_scrollback_lines = get("terminal_scrollback_lines")?
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(10000);
+
+        let mut kb_stmt = conn
+            .prepare("SELECT action, binding FROM keybindings")
+            .map_err(|e| e.to_string())?;
+        let kb_rows = kb_stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut custom_keybindings = HashMap::new();
+        for row in kb_rows {
+            let (action, binding) = row.map_err(|e| e.to_string())?;
+            custom_keybindings.insert(action, binding);
+        }
+
+        Ok(AppSettings {
+            theme,
+            default_shell,
+            agent_launch_delay,
+            terminal_scrollback_lines,
+            custom_keybindings,
+            auto_update_enabled: true,
+        })
+    }
+
+    /// Save a custom theme directly via SQL.
+    fn save_theme_sql(
+        conn: &rusqlite::Connection,
+        theme: &CustomThemeRecord,
+    ) -> Result<(), String> {
+        conn.execute(
+            "INSERT INTO themes (id, name, theme_json, is_builtin) VALUES (?1, ?2, ?3, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                theme_json = excluded.theme_json,
+                is_builtin = 0",
+            rusqlite::params![theme.id, theme.name, theme.theme_json],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Load custom themes directly via SQL.
+    fn load_themes_sql(
+        conn: &rusqlite::Connection,
+    ) -> Result<Vec<CustomThemeRecord>, String> {
+        let mut stmt = conn
+            .prepare("SELECT id, name, theme_json FROM themes WHERE is_builtin = 0 ORDER BY name")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(CustomThemeRecord {
+                    id: row.get::<_, String>(0)?,
+                    name: row.get::<_, String>(1)?,
+                    theme_json: row.get::<_, String>(2)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut themes = Vec::new();
+        for row in rows {
+            themes.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(themes)
+    }
+
+    // -- Proptest strategies ------------------------------------------------
+
+    /// Strategy for a non-empty alphanumeric string (safe for SQL TEXT).
+    fn arb_safe_string() -> impl Strategy<Value = String> {
+        "[a-zA-Z0-9_]{1,30}"
+    }
+
+    /// Strategy for optional safe string.
+    fn arb_opt_string() -> impl Strategy<Value = Option<String>> {
+        prop::option::of(arb_safe_string())
+    }
+
+    /// Strategy for a valid pane_type.
+    fn arb_pane_type() -> impl Strategy<Value = String> {
+        prop::sample::select(PANE_TYPES).prop_map(|s| s.to_string())
+    }
+
+    /// Strategy for a small HashMap<String, String> (env vars).
+    fn arb_env_vars() -> impl Strategy<Value = HashMap<String, String>> {
+        prop::collection::hash_map(arb_safe_string(), arb_safe_string(), 0..5)
+    }
+
+    /// Strategy for a PaneConfig tied to a given workspace_id.
+    fn arb_pane_config(workspace_id: String) -> impl Strategy<Value = PaneConfig> {
+        (
+            arb_safe_string(),      // id
+            arb_pane_type(),        // pane_type
+            arb_opt_string(),       // working_directory
+            arb_opt_string(),       // startup_command
+            any::<bool>(),          // auto_launch
+            arb_env_vars(),         // env_vars
+        )
+            .prop_map(move |(id, pane_type, wd, cmd, auto_launch, env_vars)| {
+                PaneConfig {
+                    id,
+                    workspace_id: workspace_id.clone(),
+                    pane_type,
+                    working_directory: wd,
+                    startup_command: cmd,
+                    auto_launch,
+                    env_vars,
+                }
+            })
+    }
+
+    /// Strategy for a WorkspaceConfig with 0..8 panes.
+    fn arb_workspace() -> impl Strategy<Value = WorkspaceConfig> {
+        arb_safe_string().prop_flat_map(|ws_id| {
+            (
+                Just(ws_id.clone()),
+                arb_safe_string(),               // name
+                arb_opt_string(),                // tab_color
+                0..100i32,                       // tab_order
+                arb_safe_string(),               // layout_json (opaque JSON blob)
+                any::<bool>(),                   // is_active
+                arb_opt_string(),                // board_columns_json
+                prop::collection::vec(arb_pane_config(ws_id), 0..8),
+            )
+                .prop_map(
+                    |(id, name, tab_color, tab_order, layout_json, is_active, board_columns_json, panes)| {
+                        WorkspaceConfig {
+                            id,
+                            name,
+                            tab_color,
+                            tab_order,
+                            layout_json,
+                            is_active,
+                            board_columns_json,
+                            panes,
+                        }
+                    },
+                )
+        })
+    }
+
+    /// Strategy for an AppSettings.
+    fn arb_settings() -> impl Strategy<Value = AppSettings> {
+        (
+            arb_safe_string(),                                                   // theme
+            arb_opt_string(),                                                    // default_shell
+            0..10000u64,                                                         // agent_launch_delay
+            1..100000u32,                                                        // terminal_scrollback_lines
+            prop::collection::hash_map(arb_safe_string(), arb_safe_string(), 0..5), // custom_keybindings
+            any::<bool>(),                                                       // auto_update_enabled
+        )
+            .prop_map(
+                |(theme, default_shell, delay, scrollback, keybindings, _auto_update)| AppSettings {
+                    theme,
+                    default_shell,
+                    agent_launch_delay: delay,
+                    terminal_scrollback_lines: scrollback,
+                    custom_keybindings: keybindings,
+                    auto_update_enabled: true, // not persisted to settings table, default to true
+                },
+            )
+    }
+
+    /// Strategy for a CustomThemeRecord with a valid JSON object as theme_json.
+    fn arb_theme() -> impl Strategy<Value = CustomThemeRecord> {
+        (
+            arb_safe_string(), // id
+            arb_safe_string(), // name
+            // Generate a random JSON object with a few keys
+            prop::collection::hash_map(arb_safe_string(), arb_safe_string(), 1..8),
+        )
+            .prop_map(|(id, name, map)| {
+                let theme_json = serde_json::to_string(&map).unwrap();
+                CustomThemeRecord {
+                    id,
+                    name,
+                    theme_json,
+                }
+            })
+    }
+
+    // -- Property tests -----------------------------------------------------
+
+    proptest! {
+        /// Property 1: Workspace persistence round-trip.
+        /// Save a random WorkspaceConfig via SQL, load it back, and verify all
+        /// fields (including every pane and its env_vars) are identical.
+        #[test]
+        fn prop_workspace_roundtrip(ws in arb_workspace()) {
+            let conn = fresh_db();
+            save_workspace_sql(&conn, &ws).unwrap();
+
+            let loaded = load_workspaces_sql(&conn).unwrap();
+            prop_assert_eq!(loaded.len(), 1);
+
+            let got = &loaded[0];
+            prop_assert_eq!(&got.id, &ws.id);
+            prop_assert_eq!(&got.name, &ws.name);
+            prop_assert_eq!(&got.tab_color, &ws.tab_color);
+            prop_assert_eq!(got.tab_order, ws.tab_order);
+            prop_assert_eq!(&got.layout_json, &ws.layout_json);
+            prop_assert_eq!(got.is_active, ws.is_active);
+            prop_assert_eq!(&got.board_columns_json, &ws.board_columns_json);
+            prop_assert_eq!(got.panes.len(), ws.panes.len());
+
+            // Sort panes by id for deterministic comparison (SQL order may vary)
+            let mut expected_panes = ws.panes.clone();
+            expected_panes.sort_by(|a, b| a.id.cmp(&b.id));
+            let mut actual_panes = got.panes.clone();
+            actual_panes.sort_by(|a, b| a.id.cmp(&b.id));
+
+            for (exp, act) in expected_panes.iter().zip(actual_panes.iter()) {
+                prop_assert_eq!(&act.id, &exp.id);
+                prop_assert_eq!(&act.workspace_id, &exp.workspace_id);
+                prop_assert_eq!(&act.pane_type, &exp.pane_type);
+                prop_assert_eq!(&act.working_directory, &exp.working_directory);
+                prop_assert_eq!(&act.startup_command, &exp.startup_command);
+                prop_assert_eq!(act.auto_launch, exp.auto_launch);
+                prop_assert_eq!(&act.env_vars, &exp.env_vars);
+            }
+        }
+
+        /// Property 26: Theme JSON round-trip.
+        /// Save a random custom theme, load it back, verify all fields match.
+        #[test]
+        fn prop_theme_roundtrip(theme in arb_theme()) {
+            let conn = fresh_db();
+            save_theme_sql(&conn, &theme).unwrap();
+
+            let loaded = load_themes_sql(&conn).unwrap();
+            prop_assert_eq!(loaded.len(), 1);
+
+            let got = &loaded[0];
+            prop_assert_eq!(&got.id, &theme.id);
+            prop_assert_eq!(&got.name, &theme.name);
+            prop_assert_eq!(&got.theme_json, &theme.theme_json);
+
+            // Also verify the JSON round-trips through serde_json
+            let original: serde_json::Value =
+                serde_json::from_str(&theme.theme_json).unwrap();
+            let loaded_val: serde_json::Value =
+                serde_json::from_str(&got.theme_json).unwrap();
+            prop_assert_eq!(original, loaded_val);
+        }
+
+        /// Property: Settings round-trip.
+        /// Save random AppSettings, load them back, verify equivalence.
+        /// Note: empty default_shell is stored as "" which loads back as None.
+        #[test]
+        fn prop_settings_roundtrip(settings in arb_settings()) {
+            let conn = fresh_db();
+            save_settings_sql(&conn, &settings).unwrap();
+
+            let got = load_settings_sql(&conn).unwrap();
+
+            prop_assert_eq!(&got.theme, &settings.theme);
+            // An empty default_shell saves as "" and loads as None (filter)
+            let expected_shell = settings.default_shell.as_ref().filter(|s| !s.is_empty()).cloned();
+            prop_assert_eq!(&got.default_shell, &expected_shell);
+            prop_assert_eq!(got.agent_launch_delay, settings.agent_launch_delay);
+            prop_assert_eq!(
+                got.terminal_scrollback_lines,
+                settings.terminal_scrollback_lines
+            );
+            prop_assert_eq!(&got.custom_keybindings, &settings.custom_keybindings);
+        }
+
+        /// Property: Migration idempotence.
+        /// Running init_db twice on the same file produces no errors and
+        /// preserves data inserted between the two calls.
+        #[test]
+        fn prop_migration_idempotence(ws in arb_workspace()) {
+            let dir = tempfile::tempdir().unwrap();
+            let db_path = dir.path().join("idem.db");
+
+            // First init + insert data
+            let r1 = init_db(&db_path).unwrap();
+            prop_assert!(!r1.was_recreated);
+            save_workspace_sql(&r1.connection, &ws).unwrap();
+            drop(r1);
+
+            // Second init on the same file
+            let r2 = init_db(&db_path).unwrap();
+            prop_assert!(!r2.was_recreated);
+
+            // Data must still be present
+            let loaded = load_workspaces_sql(&r2.connection).unwrap();
+            prop_assert_eq!(loaded.len(), 1);
+            prop_assert_eq!(&loaded[0].id, &ws.id);
+            prop_assert_eq!(&loaded[0].name, &ws.name);
+            prop_assert_eq!(loaded[0].panes.len(), ws.panes.len());
+        }
+
+        /// Property: Workspace delete cascade.
+        /// Creating a workspace with panes then deleting the workspace must
+        /// also remove all associated panes (ON DELETE CASCADE).
+        #[test]
+        fn prop_workspace_delete_cascade(ws in arb_workspace()) {
+            let conn = fresh_db();
+            // Need foreign keys enabled for CASCADE
+            conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+            save_workspace_sql(&conn, &ws).unwrap();
+
+            // Verify panes exist
+            let pane_count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM panes WHERE workspace_id = ?1",
+                    rusqlite::params![ws.id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            prop_assert_eq!(pane_count as usize, ws.panes.len());
+
+            // Delete workspace
+            conn.execute(
+                "DELETE FROM workspaces WHERE id = ?1",
+                rusqlite::params![ws.id],
+            )
+            .unwrap();
+
+            // Workspace gone
+            let ws_count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM workspaces WHERE id = ?1",
+                    rusqlite::params![ws.id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            prop_assert_eq!(ws_count, 0);
+
+            // Panes must also be gone (CASCADE)
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM panes WHERE workspace_id = ?1",
+                    rusqlite::params![ws.id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            prop_assert_eq!(remaining, 0);
+        }
+    }
 }

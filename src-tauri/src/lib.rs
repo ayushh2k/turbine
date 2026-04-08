@@ -4,15 +4,17 @@ pub mod file_ops;
 pub mod pty_manager;
 pub mod swarm_engine;
 pub mod types;
+pub mod updater;
 
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -79,7 +81,17 @@ pub fn run() {
             file_ops::watch_file,
             file_ops::unwatch_file,
             file_ops::git_status,
+            updater::check_for_updates,
+            updater::install_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::ExitRequested { .. } = event {
+                // Kill all active PTY processes on app exit to prevent orphaned shells
+                if let Some(pty_mgr) = app_handle.try_state::<pty_manager::PtyManager>() {
+                    pty_mgr.kill_all();
+                }
+            }
+        });
 }

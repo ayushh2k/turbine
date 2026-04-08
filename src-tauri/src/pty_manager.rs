@@ -33,6 +33,15 @@ impl PtyManager {
         }
         Ok(())
     }
+
+    /// Kill all active PTY processes. Called on app exit to prevent orphaned shells.
+    pub fn kill_all(&self) {
+        if let Ok(mut entries) = self.entries.lock() {
+            for (_, mut entry) in entries.drain() {
+                let _ = entry.child.kill();
+            }
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -96,13 +105,17 @@ pub fn spawn_pty_internal(
         })
         .map_err(|e| format!("Failed to open PTY: {e}"))?;
 
-    // Determine shell path
+    // Determine shell path: prefer explicit > $SHELL env > platform default
     let shell_path = shell.unwrap_or_else(|| {
-        if cfg!(target_os = "macos") {
-            "/bin/zsh".to_string()
-        } else {
-            "/bin/bash".to_string()
-        }
+        std::env::var("SHELL").unwrap_or_else(|_| {
+            if cfg!(target_os = "macos") {
+                "/bin/zsh".to_string()
+            } else if cfg!(target_os = "windows") {
+                std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+            } else {
+                "/bin/bash".to_string()
+            }
+        })
     });
 
     let mut cmd = CommandBuilder::new(&shell_path);

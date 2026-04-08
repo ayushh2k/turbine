@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct WorkspaceConfig {
     pub id: String,
     pub name: String,
@@ -13,7 +13,7 @@ pub struct WorkspaceConfig {
     pub panes: Vec<PaneConfig>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PaneConfig {
     pub id: String,
     pub workspace_id: String,
@@ -24,16 +24,17 @@ pub struct PaneConfig {
     pub env_vars: HashMap<String, String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppSettings {
     pub theme: String,
     pub default_shell: Option<String>,
     pub agent_launch_delay: u64,
     pub terminal_scrollback_lines: u32,
     pub custom_keybindings: HashMap<String, String>,
+    pub auto_update_enabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CustomThemeRecord {
     pub id: String,
     pub name: String,

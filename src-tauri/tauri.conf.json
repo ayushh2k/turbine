@@ -24,7 +24,13 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: blob: data:; media-src 'self' asset: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:*"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/ayushh2k/turbine/releases/latest/download/latest.json"],
+      "pubkey": ""
     }
   },
   "bundle": {

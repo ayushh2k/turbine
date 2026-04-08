@@ -196,6 +196,10 @@ pub fn save_settings(db: State<'_, DbState>, settings: AppSettings) -> Result<()
             "terminal_scrollback_lines",
             settings.terminal_scrollback_lines.to_string(),
         ),
+        (
+            "auto_update_enabled",
+            settings.auto_update_enabled.to_string(),
+        ),
     ];
 
     for (key, value) in pairs {
@@ -244,6 +248,9 @@ pub fn load_settings(db: State<'_, DbState>) -> Result<AppSettings, String> {
     let terminal_scrollback_lines = get("terminal_scrollback_lines")?
         .and_then(|v| v.parse::<u32>().ok())
         .unwrap_or(10000);
+    let auto_update_enabled = get("auto_update_enabled")?
+        .map(|v| v != "false")
+        .unwrap_or(true);
 
     // Load keybindings
     let custom_keybindings = load_keybindings_inner(&conn)?;
@@ -254,6 +261,7 @@ pub fn load_settings(db: State<'_, DbState>) -> Result<AppSettings, String> {
         agent_launch_delay,
         terminal_scrollback_lines,
         custom_keybindings,
+        auto_update_enabled,
     })
 }
 

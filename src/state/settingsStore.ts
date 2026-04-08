@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   agentLaunchDelay: 500,
   terminalScrollbackLines: 10000,
   customKeybindings: {},
+  autoUpdateEnabled: true,
 };
 
 interface SettingsState {
@@ -28,6 +29,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         agent_launch_delay: number;
         terminal_scrollback_lines: number;
         custom_keybindings: Record<string, string>;
+        auto_update_enabled: boolean;
       }>('load_settings');
 
       set({
@@ -37,6 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           agentLaunchDelay: raw.agent_launch_delay,
           terminalScrollbackLines: raw.terminal_scrollback_lines,
           customKeybindings: raw.custom_keybindings,
+          autoUpdateEnabled: raw.auto_update_enabled,
         },
       });
     } catch {
@@ -58,6 +61,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         agent_launch_delay: merged.agentLaunchDelay,
         terminal_scrollback_lines: merged.terminalScrollbackLines,
         custom_keybindings: merged.customKeybindings,
+        auto_update_enabled: merged.autoUpdateEnabled,
       },
     });
   },

@@ -7,6 +7,22 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 
+/// Validate and canonicalize a file path to prevent path traversal attacks.
+/// Rejects paths containing `..` components after canonicalization and ensures
+/// the path doesn't escape expected boundaries.
+fn validate_path(path: &str) -> Result<PathBuf, String> {
+    let p = PathBuf::from(path);
+    // Reject obviously malicious patterns before touching the filesystem
+    for component in p.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Path traversal (.. components) is not allowed".into());
+        }
+    }
+    // Canonicalize to resolve symlinks
+    p.canonicalize()
+        .map_err(|e| format!("Invalid path '{}': {e}", path))
+}
+
 /// Managed state that holds the file watcher and the set of watched paths.
 pub struct FileWatcher {
     pub watcher: RecommendedWatcher,
@@ -49,6 +65,7 @@ pub fn read_file(
     offset: Option<u64>,
     limit: Option<u64>,
 ) -> Result<FileContent, String> {
+    let path = validate_path(&path)?.to_string_lossy().to_string();
     let metadata = fs::metadata(&path).map_err(|e| format!("Failed to read file metadata: {e}"))?;
     let total_size = metadata.len();
     let offset = offset.unwrap_or(0);
@@ -90,6 +107,7 @@ pub fn read_file(
 
 #[tauri::command]
 pub fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    let path = validate_path(&path)?.to_string_lossy().to_string();
     let mut file = fs::File::open(&path).map_err(|e| format!("Failed to open file: {e}"))?;
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes).map_err(|e| format!("Failed to read file: {e}"))?;
@@ -98,6 +116,23 @@ pub fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
 
 #[tauri::command]
 pub fn write_file(path: String, content: String) -> Result<(), String> {
+    // For writes, we can't canonicalize non-existent files, so validate parent
+    let p = PathBuf::from(&path);
+    for component in p.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Path traversal (.. components) is not allowed".into());
+        }
+    }
+    if let Some(parent) = p.parent() {
+        if parent.exists() {
+            let canonical_parent = parent
+                .canonicalize()
+                .map_err(|e| format!("Invalid parent path: {e}"))?;
+            let full_path = canonical_parent.join(p.file_name().ok_or("Invalid file name")?);
+            return fs::write(&full_path, &content)
+                .map_err(|e| format!("Failed to write file: {e}"));
+        }
+    }
     fs::write(&path, &content).map_err(|e| format!("Failed to write file: {e}"))
 }
 

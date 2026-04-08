@@ -23,6 +23,7 @@ import type { RunTaskRequest } from './components/TaskBoard';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
 import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
+import { UpdateNotification } from './components/UpdateNotification';
 import './App.css';
 
 function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
@@ -687,8 +688,11 @@ function App() {
 
   if (loading) {
     return (
-      <div className="app">
-        <div className="app__loading">Starting Turbine...</div>
+      <div className="app" role="status" aria-label="Loading Turbine">
+        <div className="app__loading">
+          <div className="app__loading-spinner" />
+          <span>Starting Turbine...</span>
+        </div>
       </div>
     );
   }
@@ -696,15 +700,15 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app">
-        <div className="app__header">
+        <nav className="app__header" aria-label="Workspace tabs">
           <TabBar
             onContextMenu={handleContextMenu}
             onApplyTemplate={handleApplyTemplate}
             homeActive={showHome}
             onHomeClick={() => setShowHome(true)}
           />
-        </div>
-        <div className="app__content">
+        </nav>
+        <main className="app__content" role="main">
           <ActivityBar
             activePanel={activePanel}
             onPanelToggle={handlePanelToggle}
@@ -761,7 +765,7 @@ function App() {
               ))
             )}
           </div>
-        </div>
+        </main>
 
         {showPalette && (
           <CommandPalette
@@ -775,6 +779,7 @@ function App() {
         )}
 
         {contextMenuElement}
+        <UpdateNotification />
       </div>
     </ErrorBoundary>
   );

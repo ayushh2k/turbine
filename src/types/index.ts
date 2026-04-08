@@ -49,6 +49,14 @@ export interface AppSettings {
   agentLaunchDelay: number; // milliseconds
   terminalScrollbackLines: number;
   customKeybindings: Record<string, string>;
+  autoUpdateEnabled: boolean;
+}
+
+// Update info returned by the check_for_updates command
+export interface UpdateInfo {
+  version: string;
+  body: string | null;
+  date: string | null;
 }
 
 // File content for incremental loading

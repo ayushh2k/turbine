@@ -230,6 +230,18 @@ function GeneralSection() {
           onBlur={handleDelayBlur}
         />
       </div>
+
+      <div className="settings-panel__field">
+        <label className="settings-panel__label">
+          <input
+            type="checkbox"
+            checked={settings.autoUpdateEnabled}
+            onChange={(e) => saveSettings({ autoUpdateEnabled: e.target.checked })}
+            style={{ marginRight: 8 }}
+          />
+          Check for updates automatically
+        </label>
+      </div>
     </>
   );
 }
