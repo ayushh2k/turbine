@@ -1,5 +1,6 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { keybindingManager } from '../state/keybindingManager';
+import { useSearchStore } from '../state/searchStore';
 import { navigatePane } from '../state/layoutEngine';
 import type { Workspace } from '../types';
 
@@ -101,6 +102,9 @@ export function useWorkspaceKeybindings({
           }),
         );
       }
+    });
+    km.register('searchPanes', () => {
+      useSearchStore.getState().toggle();
     });
 
     km.register('nextWorkspace', () => {

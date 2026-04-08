@@ -24,6 +24,8 @@ import { deriveWorkspaceRoot } from './utils/workspaceRoots';
 import { getPaneTypeForPath } from './utils/mediaFiles';
 import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
 import { UpdateNotification } from './components/UpdateNotification';
+import { NotificationCenter } from './components/NotificationCenter';
+import { SearchBar } from './components/SearchBar';
 import './App.css';
 
 function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
@@ -818,7 +820,9 @@ function App() {
         )}
 
         {contextMenuElement}
+        <SearchBar />
         <UpdateNotification />
+        <NotificationCenter />
       </div>
     </ErrorBoundary>
   );

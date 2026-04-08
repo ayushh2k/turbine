@@ -1,0 +1,623 @@
+/* ===== Swarm History — Run History & Replay Panel ===== */
+
+.swarm-history {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.swarm-history__loading,
+.swarm-history__detail-loading {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  opacity: 0.6;
+}
+
+/* ── Empty state ── */
+
+.swarm-history__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.swarm-history__empty-icon {
+  font-size: 32px;
+  opacity: 0.35;
+  margin-bottom: 4px;
+}
+
+.swarm-history__empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.swarm-history__empty-desc {
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+/* ── Run list ── */
+
+.swarm-history__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Run item (row + expandable detail) ── */
+
+.swarm-history__item {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.swarm-history__item:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.swarm-history__item--expanded {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* ── Summary row (always visible) ── */
+
+.swarm-history__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.swarm-history__row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Status badge */
+
+.swarm-history__status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.swarm-history__status--running {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+}
+
+.swarm-history__status--completed {
+  background: rgba(76, 175, 80, 0.15);
+  color: var(--color-success, #4caf50);
+}
+
+.swarm-history__status--failed {
+  background: rgba(244, 67, 54, 0.15);
+  color: var(--color-error, #f44336);
+}
+
+.swarm-history__status--paused {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.swarm-history__status--initializing,
+.swarm-history__status--reviewing {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-fg-muted);
+}
+
+/* Run ID */
+
+.swarm-history__id {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* Prompt preview */
+
+.swarm-history__prompt {
+  font-size: 12px;
+  color: var(--color-fg);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Date */
+
+.swarm-history__date {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Chevron */
+
+.swarm-history__chevron {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.swarm-history__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ── Expanded detail ── */
+
+.swarm-history__detail {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Full prompt */
+
+.swarm-history__full-prompt {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.swarm-history__detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-muted);
+  margin-bottom: 4px;
+}
+
+.swarm-history__detail-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.swarm-history__detail-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  opacity: 0.5;
+}
+
+/* ── Detail tabs ── */
+
+.swarm-history__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.swarm-history__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-fg-muted);
+  padding: 7px 10px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swarm-history__tab:hover {
+  color: var(--color-fg);
+}
+
+.swarm-history__tab--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+  font-weight: 600;
+}
+
+.swarm-history__tab-count {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0 4px;
+}
+
+.swarm-history__tab--active .swarm-history__tab-count {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  color: var(--color-accent);
+}
+
+/* ── Agents list ── */
+
+.swarm-history__agents {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.swarm-history__agent {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swarm-history__agent--running {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.swarm-history__agent--completed {
+  border-color: rgba(76, 175, 80, 0.2);
+}
+
+.swarm-history__agent--failed {
+  border-color: rgba(244, 67, 54, 0.2);
+}
+
+.swarm-history__agent-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swarm-history__agent-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.swarm-history__agent-indicator--running {
+  background: var(--color-accent);
+}
+
+.swarm-history__agent-indicator--completed {
+  background: var(--color-success, #4caf50);
+}
+
+.swarm-history__agent-indicator--failed {
+  background: var(--color-error, #f44336);
+}
+
+.swarm-history__agent-indicator--cancelled {
+  background: var(--color-fg-muted);
+  opacity: 0.4;
+}
+
+.swarm-history__agent-indicator--pending {
+  background: transparent;
+  border: 2px solid var(--color-fg-muted);
+  opacity: 0.3;
+}
+
+.swarm-history__agent-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.swarm-history__agent-status {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  text-transform: capitalize;
+}
+
+.swarm-history__agent-status--running {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+
+.swarm-history__agent-status--completed {
+  background: rgba(76, 175, 80, 0.12);
+  color: var(--color-success, #4caf50);
+}
+
+.swarm-history__agent-status--failed {
+  background: rgba(244, 67, 54, 0.12);
+  color: var(--color-error, #f44336);
+}
+
+.swarm-history__agent-status--paused,
+.swarm-history__agent-status--cancelled {
+  background: rgba(255, 193, 7, 0.12);
+  color: #ffc107;
+}
+
+.swarm-history__agent-status--pending {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-fg-muted);
+}
+
+.swarm-history__agent-exit {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  margin-left: auto;
+}
+
+.swarm-history__agent-exit--ok {
+  background: rgba(76, 175, 80, 0.12);
+  color: var(--color-success, #4caf50);
+}
+
+.swarm-history__agent-exit--err {
+  background: rgba(244, 67, 54, 0.12);
+  color: var(--color-error, #f44336);
+}
+
+.swarm-history__agent-cmd {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+
+.swarm-history__agent-time {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  opacity: 0.7;
+}
+
+/* ── Messages list ── */
+
+.swarm-history__messages {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.swarm-history__msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.swarm-history__msg--agent {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.swarm-history__msg--user {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.swarm-history__msg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.swarm-history__msg-role {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent);
+}
+
+.swarm-history__msg--user .swarm-history__msg-role {
+  color: var(--color-fg);
+}
+
+.swarm-history__msg-time {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+}
+
+.swarm-history__msg-content {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-fg);
+}
+
+/* ── Timeline view ── */
+
+.swarm-history__timeline {
+  padding: 10px;
+}
+
+.swarm-history__timeline-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swarm-history__timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swarm-history__timeline-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swarm-history__timeline-track {
+  flex: 1;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.swarm-history__timeline-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  min-width: 4px;
+  transition: background 0.15s;
+}
+
+.swarm-history__timeline-bar--running {
+  background: color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+
+.swarm-history__timeline-bar--completed {
+  background: rgba(76, 175, 80, 0.5);
+}
+
+.swarm-history__timeline-bar--failed {
+  background: rgba(244, 67, 54, 0.5);
+}
+
+.swarm-history__timeline-bar--cancelled,
+.swarm-history__timeline-bar--paused {
+  background: rgba(255, 193, 7, 0.4);
+}
+
+.swarm-history__timeline-bar--pending {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.swarm-history__timeline-dur {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  flex-shrink: 0;
+  width: 55px;
+  text-align: right;
+}
+
+.swarm-history__timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-left: 98px;
+  padding-right: 63px;
+  font-size: 9px;
+  color: var(--color-fg-muted);
+  opacity: 0.5;
+}
+
+/* ── Scrollbar styling (match SwarmPanel) ── */
+
+.swarm-history__list::-webkit-scrollbar,
+.swarm-history__agents::-webkit-scrollbar,
+.swarm-history__messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.swarm-history__list::-webkit-scrollbar-thumb,
+.swarm-history__agents::-webkit-scrollbar-thumb,
+.swarm-history__messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+/* ── Side-panel compact layout ── */
+
+.side-panel .swarm-history__list {
+  padding: 6px;
+}
+
+.side-panel .swarm-history__row {
+  padding: 8px 10px;
+  gap: 6px;
+}
+
+.side-panel .swarm-history__status {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.side-panel .swarm-history__id {
+  font-size: 10px;
+}
+
+.side-panel .swarm-history__prompt {
+  font-size: 11px;
+}
+
+.side-panel .swarm-history__agents {
+  padding: 6px 8px;
+}
+
+.side-panel .swarm-history__messages {
+  padding: 6px 8px;
+}
+
+.side-panel .swarm-history__timeline-label {
+  width: 70px;
+  font-size: 10px;
+}
+
+.side-panel .swarm-history__timeline-axis {
+  padding-left: 78px;
+}

@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import { useTaskStore } from '../state/taskStore';
+import { useNotificationStore } from '../state/notificationStore';
 import { spawnPaneSession } from '../state/terminalSession';
 
 export type PaneProcessStatus = 'running' | 'exited' | 'errored';
@@ -109,6 +110,32 @@ export function usePtyStatusListener() {
       const status: PaneProcessStatus =
         exit_code === null || exit_code !== 0 ? 'errored' : 'exited';
       setStatus(pane_id, status, exit_code);
+
+      // Notify when a process exits in a non-focused pane
+      {
+        const focusedElement = document.activeElement;
+        const paneContainer = document.querySelector(`[data-pane-id="${pane_id}"]`);
+        const isFocused = paneContainer != null && paneContainer.contains(focusedElement);
+
+        if (!isFocused) {
+          const ws = useWorkspaceStore.getState();
+          let paneLabel = pane_id;
+          for (const workspace of ws.workspaces) {
+            const pane = workspace.panes.find((p) => p.id === pane_id);
+            if (pane) {
+              paneLabel = pane.label || pane.id;
+              break;
+            }
+          }
+          const codeStr = exit_code != null ? String(exit_code) : 'unknown';
+          const notifType = exit_code === 0 ? 'success' : 'warning';
+          useNotificationStore.getState().addNotification(
+            'Process exited',
+            `${paneLabel} (exit code: ${codeStr})`,
+            notifType,
+          );
+        }
+      }
 
       // Auto-move linked task to "done" on successful exit
       if (exit_code === 0) {

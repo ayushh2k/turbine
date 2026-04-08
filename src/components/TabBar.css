@@ -92,11 +92,14 @@
 }
 
 .tab-bar__tab--dragging {
-  opacity: 0.4;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
 }
 
 .tab-bar__tab--drag-over {
+  border-left: 2px solid var(--color-accent, #00d2ff);
   background: rgba(0, 229, 200, 0.06);
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 /* Close button (left of tab name, like Termius) */

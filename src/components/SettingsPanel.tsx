@@ -31,6 +31,7 @@ const ACTION_LABELS: Record<Action, string> = {
   navLeft: 'Navigate Left',
   navRight: 'Navigate Right',
   search: 'Search',
+  searchPanes: 'Search All Panes',
   toggleBroadcast: 'Toggle Broadcast',
   workspace1: 'Workspace 1',
   workspace2: 'Workspace 2',

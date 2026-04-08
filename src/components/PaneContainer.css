@@ -27,22 +27,23 @@
 }
 
 .pane-leaf--drag-over {
-  border-color: var(--color-accent);
-  background: rgba(0, 229, 200, 0.02);
+  outline: 2px solid var(--color-accent, #00e5c8);
+  outline-offset: -2px;
 }
 
 .pane-leaf--dragging {
   opacity: 0.4;
+  transition: opacity 0.15s;
 }
 
 /* Pane title bar — always visible, thin bar at top of each pane */
 .pane-title-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 24px;
-  padding: 0 8px 0 10px;
-  background: rgba(255, 255, 255, 0.015);
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px 0 4px;
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.015));
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   flex-shrink: 0;
   user-select: none;
@@ -58,6 +59,54 @@
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+}
+
+/* Pane title — displayed text, truncated with ellipsis */
+.pane-title-text {
+  font-size: 11px;
+  color: var(--color-text-primary, var(--color-fg-muted));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+  padding: 2px 0;
+}
+
+/* Pane title inline edit input */
+.pane-title-input {
+  font-size: 11px;
+  color: var(--color-text-primary, var(--color-fg-muted));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-accent, #00e5c8);
+  outline: none;
+  padding: 2px 0;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.pane-title-input::placeholder {
+  color: var(--color-fg-muted);
+  opacity: 0.5;
+}
+
+/* Pane type label — subtle secondary text shown when custom title is set */
+.pane-title-type {
+  font-size: 10px;
+  color: var(--color-fg-muted);
+  opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
 }
 
 .pane-title-bar__close {
@@ -87,6 +136,87 @@
 .pane-title-bar__close:hover {
   background: rgba(255, 80, 80, 0.2);
   color: #ff5c5c;
+}
+
+/* Drag handle — 6-dot grip icon in the title bar, visible on hover */
+.pane-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.12s;
+  border-radius: 3px;
+}
+
+.pane-drag-handle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pane-drag-handle:active {
+  cursor: grabbing;
+}
+
+.pane-leaf:hover .pane-drag-handle,
+.pane-leaf--focused .pane-drag-handle {
+  opacity: 0.5;
+}
+
+.pane-leaf:hover .pane-drag-handle:hover {
+  opacity: 1;
+}
+
+/* 6-dot grip pattern (2 columns x 3 rows) using radial-gradient */
+.pane-drag-handle__dots {
+  display: block;
+  width: 8px;
+  height: 14px;
+  background-image: radial-gradient(
+    circle,
+    var(--color-fg-muted, #888) 1px,
+    transparent 1px
+  );
+  background-size: 4px 4.5px;
+  background-position: 0 0;
+  background-repeat: repeat;
+}
+
+/* Drop overlay — semi-transparent accent overlay shown on valid drop targets */
+.pane-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 229, 200, 0.08);
+  border: 2px dashed var(--color-accent, #00e5c8);
+  border-radius: 4px;
+  pointer-events: none;
+  animation: pane-drop-fade-in 0.12s ease-out;
+}
+
+.pane-drop-overlay__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent, #00e5c8);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 12px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@keyframes pane-drop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .pane-placeholder {

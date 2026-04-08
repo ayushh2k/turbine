@@ -1,0 +1,111 @@
+.notification-center {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 9998;
+  pointer-events: none;
+}
+
+.notification-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-bg-secondary, #0f2137);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  color: var(--color-text-primary, var(--color-fg, #c8dce8));
+  max-width: 360px;
+  min-width: 240px;
+  pointer-events: auto;
+  animation: notification-slide-in 0.25s ease-out;
+}
+
+.notification-toast--dismissing {
+  animation: notification-fade-out 0.2s ease-in forwards;
+}
+
+.notification-toast--success {
+  border-left: 3px solid #4caf50;
+}
+
+.notification-toast--warning {
+  border-left: 3px solid #ff9800;
+}
+
+.notification-toast--error {
+  border-left: 3px solid #f44336;
+}
+
+.notification-toast--info {
+  border-left: 3px solid var(--color-accent, #00e5c8);
+}
+
+.notification-toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-toast__title {
+  font-weight: 600;
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+
+.notification-toast__message {
+  opacity: 0.8;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.notification-toast__time {
+  opacity: 0.5;
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.notification-toast__dismiss {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary, var(--color-fg, #c8dce8));
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.5;
+  font-family: inherit;
+}
+
+.notification-toast__dismiss:hover {
+  opacity: 1;
+  background: var(--color-bg-alt, rgba(255, 255, 255, 0.04));
+}
+
+@keyframes notification-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes notification-fade-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

@@ -11,6 +11,7 @@ export type Action =
   | 'splitVertical'
   | 'navUp' | 'navDown' | 'navLeft' | 'navRight'
   | 'search'
+  | 'searchPanes'
   | 'toggleBroadcast'
   | 'openSettings';
 
@@ -33,6 +34,7 @@ const DEFAULT_BINDINGS: Record<Action, KeyCombo> = {
   navLeft: 'Ctrl+ArrowLeft',
   navRight: 'Ctrl+ArrowRight',
   search: 'Ctrl+F',
+  searchPanes: 'Ctrl+Shift+F',
   toggleBroadcast: 'Ctrl+Shift+B',
   openSettings: 'Ctrl+,',
 };

@@ -3,6 +3,7 @@ import { useSwarmStore } from '../state/swarmStore';
 import { useAgentStore } from '../state/agentStore';
 import type { SwarmRun, SwarmAgent, MailboxMessage, AgentPreset, WorkflowStep } from '../types';
 import { DEFAULT_AGENT_ROLES } from '../types';
+import { SwarmHistory } from './SwarmHistory';
 import './SwarmPanel.css';
 
 interface SwarmPanelProps {
@@ -62,7 +63,7 @@ function buildPreviewLines(output: string, maxLines = 20): string {
   return compact.slice(-maxLines).join('\n');
 }
 
-type ViewId = 'runs' | 'new-run' | 'workflow' | 'config';
+type ViewId = 'runs' | 'new-run' | 'workflow' | 'config' | 'history';
 
 export function SwarmPanel({ projectPath, workspaceId, sourcePaneId = null, onFocus }: SwarmPanelProps) {
   const runs = useSwarmStore((s) => s.runs);
@@ -233,6 +234,12 @@ export function SwarmPanel({ projectPath, workspaceId, sourcePaneId = null, onFo
           >
             Settings
           </button>
+          <button
+            className={`swarm-panel__nav-item ${view === 'history' ? 'swarm-panel__nav-item--active' : ''}`}
+            onClick={() => setView(view === 'history' ? 'runs' : 'history')}
+          >
+            History
+          </button>
         </nav>
       </div>
 
@@ -297,6 +304,11 @@ export function SwarmPanel({ projectPath, workspaceId, sourcePaneId = null, onFo
           onDelete={(id) => void deletePreset(id)}
           onClose={() => setView('runs')}
         />
+      )}
+
+      {/* ── History View ── */}
+      {view === 'history' && (
+        <SwarmHistory projectPath={projectPath} />
       )}
 
       {/* ── Main Content: Run list or Run detail ── */}

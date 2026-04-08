@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { LayoutNode, PaneConfig } from '../types';
 import type { RunTaskRequest } from './TaskBoard';
@@ -11,10 +11,10 @@ import { DiffViewer } from './DiffViewer';
 import { SwarmPanel } from './SwarmPanel';
 import { PaneToolbar } from './PaneToolbar';
 import { usePaneStatus } from '../hooks/usePtyStatus';
+import { useWorkspaceStore } from '../state/workspaceStore';
 import './PaneContainer.css';
 
-function getPaneLabel(pane: PaneConfig): string {
-  if (pane.label) return pane.label;
+function getPaneTypeLabel(pane: PaneConfig): string {
   const filename = pane.workingDirectory?.replace(/\\/g, '/').split('/').pop();
   switch (pane.type) {
     case 'terminal': return 'Terminal';
@@ -25,6 +25,12 @@ function getPaneLabel(pane: PaneConfig): string {
     case 'swarm_panel': return 'Swarm';
     default: return 'Pane';
   }
+}
+
+function getPaneDisplayTitle(pane: PaneConfig): string {
+  if (pane.title) return pane.title;
+  if (pane.label) return pane.label;
+  return getPaneTypeLabel(pane);
 }
 
 interface PaneContainerProps {
@@ -246,32 +252,65 @@ function LeafPane({
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const leafRef = useRef<HTMLDivElement>(null);
+  const dragLeaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updatePaneTitle = useWorkspaceStore((s) => s.updatePaneTitle);
 
+  // Clean up drag-leave debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dragLeaveTimeout.current) clearTimeout(dragLeaveTimeout.current);
+    };
+  }, []);
+
+  // Drag handle initiates the drag (not the whole pane, so terminals still work)
   const handleDragStart = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       e.dataTransfer.setData('text/plain', paneId);
       e.dataTransfer.effectAllowed = 'move';
+      // Use the pane element as the drag image for a nice preview
+      if (leafRef.current) {
+        const rect = leafRef.current.getBoundingClientRect();
+        e.dataTransfer.setDragImage(leafRef.current, rect.width / 2, 12);
+      }
       setIsDragging(true);
     },
     [paneId],
   );
 
+  // The outer pane div is a drop target
   const handleDragOver = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
+      // Cancel any pending drag-leave since we're still inside this pane
+      if (dragLeaveTimeout.current) {
+        clearTimeout(dragLeaveTimeout.current);
+        dragLeaveTimeout.current = null;
+      }
       setIsDragOver(true);
     },
     [],
   );
 
+  // Debounce drag-leave to prevent flicker when moving over child elements
   const handleDragLeave = useCallback(() => {
-    setIsDragOver(false);
+    if (dragLeaveTimeout.current) clearTimeout(dragLeaveTimeout.current);
+    dragLeaveTimeout.current = setTimeout(() => {
+      setIsDragOver(false);
+    }, 50);
   }, []);
 
   const handleDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+      if (dragLeaveTimeout.current) {
+        clearTimeout(dragLeaveTimeout.current);
+        dragLeaveTimeout.current = null;
+      }
       setIsDragOver(false);
       const sourceId = e.dataTransfer.getData('text/plain');
       if (sourceId && sourceId !== paneId && onMovePane) {
@@ -284,6 +323,10 @@ function LeafPane({
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
     setIsDragOver(false);
+    if (dragLeaveTimeout.current) {
+      clearTimeout(dragLeaveTimeout.current);
+      dragLeaveTimeout.current = null;
+    }
   }, []);
 
   // Memoize callbacks passed to sub-components to prevent re-renders
@@ -331,6 +374,43 @@ function LeafPane({
     [paneId]
   );
 
+  const handleTitleDoubleClick = useCallback(() => {
+    if (!pane) return;
+    setEditingTitleValue(pane.title ?? '');
+    setIsEditingTitle(true);
+  }, [pane]);
+
+  const handleTitleSave = useCallback(() => {
+    const trimmed = editingTitleValue.trim();
+    updatePaneTitle(paneId, trimmed);
+    setIsEditingTitle(false);
+  }, [editingTitleValue, paneId, updatePaneTitle]);
+
+  const handleTitleCancel = useCallback(() => {
+    setIsEditingTitle(false);
+  }, []);
+
+  const handleTitleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleTitleSave();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleTitleCancel();
+      }
+    },
+    [handleTitleSave, handleTitleCancel],
+  );
+
+  // Auto-focus the title input when editing starts
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
   const leafClasses = [
     'pane-leaf',
     isFocused ? 'pane-leaf--focused' : '',
@@ -342,11 +422,10 @@ function LeafPane({
 
   return (
     <div
+      ref={leafRef}
       className={leafClasses}
       data-pane-id={paneId}
       style={{ flex: 1 }}
-      draggable
-      onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -354,7 +433,38 @@ function LeafPane({
     >
       {pane && pane.type !== 'home' && (
         <div className="pane-title-bar">
-          <span className="pane-title-bar__label">{getPaneLabel(pane)}</span>
+          <div
+            className="pane-drag-handle"
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            title="Drag to swap panes"
+          >
+            <span className="pane-drag-handle__dots" aria-hidden="true" />
+          </div>
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              className="pane-title-input"
+              value={editingTitleValue}
+              onChange={(e) => setEditingTitleValue(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={handleTitleKeyDown}
+              placeholder={getPaneTypeLabel(pane)}
+              maxLength={100}
+            />
+          ) : (
+            <span
+              className="pane-title-text"
+              onDoubleClick={handleTitleDoubleClick}
+              title="Double-click to rename"
+            >
+              {getPaneDisplayTitle(pane)}
+            </span>
+          )}
+          {!isEditingTitle && pane.title && (
+            <span className="pane-title-type">{getPaneTypeLabel(pane)}</span>
+          )}
           <button
             className="pane-title-bar__close"
             onClick={handleClosePane}
@@ -362,6 +472,12 @@ function LeafPane({
           >
             ×
           </button>
+        </div>
+      )}
+      {/* Drop overlay — visible when another pane is being dragged over this one */}
+      {isDragOver && !isDragging && (
+        <div className="pane-drop-overlay">
+          <span className="pane-drop-overlay__label">Swap</span>
         </div>
       )}
       {pane?.type === 'home' && (
@@ -379,6 +495,7 @@ function LeafPane({
           env={pane.envVars}
           startupCommand={pane.startupCommand}
           autoLaunch={pane.autoLaunch}
+          isFocused={isFocused}
           onFocus={handleFocusPane}
           broadcastWrite={broadcastWrite}
           themeId={themeId}

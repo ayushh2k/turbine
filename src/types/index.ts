@@ -26,6 +26,7 @@ export interface PaneConfig {
   autoLaunch: boolean;
   envVars: Record<string, string>;
   label: string | null;
+  title: string | null;
   taskId: string | null;
 }
 

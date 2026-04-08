@@ -16,6 +16,7 @@ import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
 import { TerminalContextMenu } from './TerminalContextMenu';
 import { usePtyStatusStore } from '../hooks/usePtyStatus';
 import { useWorkspaceStore } from '../state/workspaceStore';
+import { useSearchStore } from '../state/searchStore';
 import { spawnPaneSession } from '../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
@@ -27,6 +28,7 @@ interface TerminalPaneProps {
   shell?: string | null;
   startupCommand?: string | null;
   autoLaunch?: boolean;
+  isFocused?: boolean;
   onFocus?: () => void;
   broadcastWrite?: (data: Uint8Array) => void;
   themeId?: string;
@@ -44,6 +46,7 @@ function TerminalPaneInner({
   shell = null,
   startupCommand = null,
   autoLaunch = false,
+  isFocused = false,
   onFocus,
   broadcastWrite,
   themeId,
@@ -74,6 +77,13 @@ function TerminalPaneInner({
 
   const scrollbackLines = useSettingsStore((s) => s.settings.terminalScrollbackLines);
   const defaultShell = useSettingsStore((s) => s.settings.defaultShell);
+
+  // Global search-across-panes state
+  const globalSearchQuery = useSearchStore((s) => s.query);
+  const globalSearchVisible = useSearchStore((s) => s.visible);
+  const globalSearchScope = useSearchStore((s) => s.paneScope);
+  const globalFindTick = useSearchStore((s) => s.findTick);
+  const globalFindDirection = useSearchStore((s) => s.findDirection);
   const setStatus = usePtyStatusStore((s) => s.setStatus);
   const setPaneSize = usePtyStatusStore((s) => s.setPaneSize);
   const removePaneSize = usePtyStatusStore((s) => s.removePaneSize);
@@ -108,6 +118,38 @@ function TerminalPaneInner({
     window.addEventListener('turbine:search-focused-pane', handleSearch);
     return () => window.removeEventListener('turbine:search-focused-pane', handleSearch);
   }, [paneId]);
+
+  // Global search-across-panes: highlight matches when query changes
+  useEffect(() => {
+    const addon = searchAddonRef.current;
+    if (!addon) return;
+
+    // Determine if this pane should participate in global search
+    const shouldSearch = globalSearchVisible && globalSearchQuery &&
+      (globalSearchScope === 'all' || (globalSearchScope === 'focused' && isFocused));
+
+    if (shouldSearch) {
+      addon.findNext(globalSearchQuery);
+    } else {
+      addon.clearDecorations();
+    }
+  }, [globalSearchQuery, globalSearchVisible, globalSearchScope, isFocused]);
+
+  // Global search: respond to find-next / find-previous button clicks
+  useEffect(() => {
+    if (globalFindTick === 0) return; // skip initial render
+    const addon = searchAddonRef.current;
+    if (!addon || !globalSearchQuery || !globalSearchVisible) return;
+
+    const shouldSearch = globalSearchScope === 'all' || (globalSearchScope === 'focused' && isFocused);
+    if (!shouldSearch) return;
+
+    if (globalFindDirection === 'next') {
+      addon.findNext(globalSearchQuery);
+    } else {
+      addon.findPrevious(globalSearchQuery);
+    }
+  }, [globalFindTick, globalFindDirection, globalSearchQuery, globalSearchVisible, globalSearchScope, isFocused]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -416,7 +458,7 @@ function TerminalPaneInner({
   }, []);
 
   return (
-    <div className="terminal-pane" onClick={handleFocus} onContextMenu={handleContextMenuEvent}>
+    <div className="terminal-pane" data-pane-id={paneId} onClick={handleFocus} onContextMenu={handleContextMenuEvent}>
       <div className="terminal-pane__container" ref={containerRef} />
       {commandBlocks.length > 0 && !showCommandBlocks && (
         <button

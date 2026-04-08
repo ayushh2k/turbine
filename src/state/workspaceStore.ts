@@ -28,6 +28,7 @@ interface WorkspaceState {
   setBoardColumns: (workspaceId: string, columns: BoardColumn[]) => void;
   setBroadcastMode: (active: boolean) => void;
   setBroadcastTargets: (targets: Set<string>) => void;
+  updatePaneTitle: (paneId: string, title: string) => void;
   detachPane: (workspaceId: string, paneId: string) => void;
   persistAll: () => Promise<void>;
   restoreAll: () => Promise<void>;
@@ -43,6 +44,7 @@ function createDefaultPane(workspaceId: string): PaneConfig {
     autoLaunch: false,
     envVars: {},
     label: null,
+    title: null,
     taskId: null,
   };
 }
@@ -58,6 +60,7 @@ function createDefaultWorkspace(name: string): Workspace {
     autoLaunch: false,
     envVars: {},
     label: null,
+    title: null,
     taskId: null,
   };
   const layout: LayoutNode = { type: 'leaf', paneId: pane.id };
@@ -130,6 +133,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         autoLaunch: false,
         envVars: {},
         label: null,
+        title: null,
         taskId: null,
       }));
       workspace = {
@@ -212,6 +216,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }));
 
     return duplicate;
+  },
+
+  updatePaneTitle: (paneId: string, title: string) => {
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => ({
+        ...w,
+        panes: w.panes.map((p) =>
+          p.id === paneId ? { ...p, title: title || null } : p
+        ),
+      })),
+    }));
+    get().markDirty();
   },
 
   detachPane: (workspaceId: string, paneId: string) => {
@@ -366,6 +382,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         autoLaunch: p.auto_launch,
         envVars: p.env_vars,
         label: null,
+        title: null,
         taskId: null,
       }));
 
