@@ -40,7 +40,7 @@ pub fn init_file_watcher(app_handle: &AppHandle) -> FileWatcher {
             ) {
                 for path in &event.paths {
                     let path_str = path.to_string_lossy().to_string();
-                    let _ = handle.emit("file_changed", path_str);
+                    let _ = handle.emit_to("main", "file_changed", path_str);
                 }
             }
         }

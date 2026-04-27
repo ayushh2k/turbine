@@ -282,6 +282,7 @@ export function FileBrowser({
         className="file-browser__search"
         type="text"
         placeholder="Filter files..."
+        aria-label="Filter project files"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
@@ -289,7 +290,7 @@ export function FileBrowser({
       <div className="file-browser__content">
         {!rootPath && (
           <div className="file-browser__empty">
-            Turbine needs a real workspace path before it can index files.
+            Open a folder to browse files
           </div>
         )}
 

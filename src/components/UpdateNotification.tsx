@@ -6,6 +6,10 @@ import './UpdateNotification.css';
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'ready' | 'error';
 
+// TODO: Set this to true and configure a valid pubkey in tauri.conf.json before release.
+// The updater requires code-signing to be configured for production use.
+const UPDATER_CONFIGURED = false;
+
 export function UpdateNotification() {
   const [state, setState] = useState<UpdateState>('idle');
   const [info, setInfo] = useState<UpdateInfo | null>(null);
@@ -13,6 +17,7 @@ export function UpdateNotification() {
   const autoUpdateEnabled = useSettingsStore((s) => s.settings.autoUpdateEnabled);
 
   const checkForUpdates = useCallback(async () => {
+    if (!UPDATER_CONFIGURED) return;
     try {
       const result = await invoke<UpdateInfo | null>('check_for_updates');
       if (result) {
@@ -25,7 +30,7 @@ export function UpdateNotification() {
   }, []);
 
   useEffect(() => {
-    if (!autoUpdateEnabled) return;
+    if (!autoUpdateEnabled || !UPDATER_CONFIGURED) return;
 
     let cancelled = false;
 

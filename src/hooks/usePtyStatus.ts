@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { create } from 'zustand';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorkspaceStore } from '../state/workspaceStore';
@@ -99,7 +100,8 @@ export function usePtyStatusListener() {
     let unlisten: UnlistenFn | null = null;
     let disposed = false;
 
-    listen<{ pane_id: string; exit_code: number | null }>('pty_exit', (event) => {
+    const appWindow = getCurrentWebviewWindow();
+    appWindow.listen<{ pane_id: string; exit_code: number | null }>('pty_exit', (event) => {
       const { pane_id, exit_code } = event.payload;
       // Ignore stale exit events that arrive shortly after a pane was (re)spawned.
       // This handles the React StrictMode double-mount and kill/respawn race conditions.

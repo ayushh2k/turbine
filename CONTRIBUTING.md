@@ -83,7 +83,7 @@ pnpm exec vitest run
 
 ## Project Structure
 
-The repo root is `turbine-app/`. Key directories:
+Key directories at the repository root:
 
 ```
 src/
@@ -104,6 +104,32 @@ src-tauri/src/
 ```
 
 For a deep dive into the architecture, read [`.kiro/specs/turbine/design.md`](.kiro/specs/turbine/design.md).
+For a contributor-friendly code tour, read [`docs/codebase-map.md`](docs/codebase-map.md).
+
+### Best files to read first
+
+If you're new to the project, this reading order gives the fastest overview:
+
+1. `README.md`
+2. `docs/codebase-map.md`
+3. `src/App.tsx`
+4. `src/state/workspaceStore.ts`
+5. `src/state/layoutEngine.ts`
+6. `src/components/TerminalPane.tsx`
+7. `src-tauri/src/lib.rs`
+8. `src-tauri/src/pty_manager.rs`
+9. `src-tauri/src/commands.rs`
+
+### Known high-context files
+
+These files are still readable, but they carry a lot of responsibility and are
+the ones most likely to need extra care during review:
+
+- `src/App.tsx`
+- `src/components/SwarmPanel.tsx`
+- `src/components/TerminalPane.tsx`
+- `src-tauri/src/commands.rs`
+- `src-tauri/src/db.rs`
 
 ### Frontend → Backend IPC pattern
 

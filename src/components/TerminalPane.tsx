@@ -6,7 +6,8 @@ import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useSettingsStore } from '../state/settingsStore';
 import { getXtermTheme } from '../themes/themeEngine';
 import { useCommandBlocks } from '../hooks/useCommandBlocks';
@@ -274,12 +275,20 @@ function TerminalPaneInner({
       terminal.writeln(`\r\n\x1b[31mFailed to spawn shell: ${err}\x1b[0m`);
     });
 
-    // Listen for PTY output
+    // Listen for PTY output (scoped to this window to prevent duplicate delivery)
     let lineBuffer = '';
     let unlisten: UnlistenFn | null = null;
     let disposed = false;
-    listen<{ pane_id: string; data: number[] }>('pty_output', (event) => {
+    let lastSeq = 0;
+    const appWindow = getCurrentWebviewWindow();
+    appWindow.listen<{ pane_id: string; data: number[]; seq: number }>('pty_output', (event) => {
       if (event.payload.pane_id === paneId) {
+        // Deduplicate: skip events already seen (seq is monotonically increasing per pane)
+        if (event.payload.seq <= lastSeq) {
+          return;
+        }
+        lastSeq = event.payload.seq;
+
         const bytes = new Uint8Array(event.payload.data);
         terminal.write(bytes);
 

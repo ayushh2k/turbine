@@ -10,6 +10,10 @@ export interface PaletteAction {
   /** For file actions: the full path used to derive a breadcrumb */
   filePath?: string;
   handler: () => void;
+  /** Called when this item is highlighted via arrow keys (live preview). */
+  preview?: () => void;
+  /** Called when the palette closes without executing this item (revert preview). */
+  revertPreview?: () => void;
 }
 
 interface CommandPaletteProps {
@@ -107,17 +111,24 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
     inputRef.current?.focus();
   }, []);
 
-  // Scroll selected item into view
+  // Scroll selected item into view and trigger live preview
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
     const item = list.children[selectedIndex] as HTMLElement | undefined;
     item?.scrollIntoView({ block: 'nearest' });
-  }, [selectedIndex]);
+    filtered[selectedIndex]?.preview?.();
+  }, [selectedIndex, filtered]);
+
+  const revertAndClose = useCallback(() => {
+    // Revert any live preview before closing
+    filtered[selectedIndex]?.revertPreview?.();
+    onClose();
+  }, [onClose, filtered, selectedIndex]);
 
   const execute = useCallback(
     (action: PaletteAction) => {
-      onClose();
+      onClose(); // no revert — user confirmed the selection
       action.handler();
     },
     [onClose],
@@ -142,15 +153,15 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
           break;
         case 'Escape':
           e.preventDefault();
-          onClose();
+          revertAndClose();
           break;
       }
     },
-    [filtered, selectedIndex, execute, onClose],
+    [filtered, selectedIndex, execute, revertAndClose],
   );
 
   return (
-    <div className="command-palette__backdrop" onClick={onClose}>
+    <div className="command-palette__backdrop" onClick={revertAndClose}>
       <div
         className="command-palette"
         role="dialog"
@@ -163,6 +174,7 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
           className="command-palette__input"
           type="text"
           placeholder={isCommandMode ? 'Type a command...' : 'Search files (type > for commands)...'}
+          aria-label="Command palette search"
           aria-autocomplete="list"
           aria-controls="command-palette-listbox"
           aria-activedescendant={filtered[selectedIndex] ? `command-palette-option-${filtered[selectedIndex].id}` : undefined}

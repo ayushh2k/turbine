@@ -159,10 +159,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => {
       const filtered = state.workspaces.filter((w) => w.id !== id);
       if (filtered.length === 0) {
-        const workspace = createDefaultWorkspace('Workspace 1');
         return {
-          workspaces: [{ ...workspace, tabOrder: 0 }],
-          activeWorkspaceId: workspace.id,
+          workspaces: [],
+          activeWorkspaceId: null,
         };
       }
 
@@ -345,6 +344,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             startup_command: p.startupCommand,
             auto_launch: p.autoLaunch,
             env_vars: p.envVars,
+            label: p.label,
+            title: p.title,
+            task_id: p.taskId,
           })),
         },
       });
@@ -368,6 +370,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startup_command: string | null;
         auto_launch: boolean;
         env_vars: Record<string, string>;
+        label: string | null;
+        title: string | null;
+        task_id: string | null;
       }>;
     }>>('load_workspaces');
 
@@ -381,9 +386,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         startupCommand: p.startup_command,
         autoLaunch: p.auto_launch,
         envVars: p.env_vars,
-        label: null,
-        title: null,
-        taskId: null,
+        label: p.label ?? null,
+        title: p.title ?? null,
+        taskId: p.task_id ?? null,
       }));
 
       if (panes.length === 0) {

@@ -54,6 +54,10 @@ impl PtyManager {
 struct PtyOutputPayload {
     pane_id: String,
     data: Vec<u8>,
+    /// Monotonically increasing sequence number per reader thread.
+    /// Allows the frontend to deduplicate events when the Tauri event
+    /// system delivers the same emission more than once.
+    seq: u64,
 }
 
 #[derive(Clone, Serialize)]
@@ -133,9 +137,25 @@ pub fn spawn_pty_internal(
         cmd.arg(command_str);
     }
 
-    if let Some(dir) = &cwd {
-        cmd.cwd(dir);
-    }
+    // Use provided cwd, falling back to the user's home directory.
+    // When launched from Finder, the process cwd is "/" which is not useful.
+    let effective_cwd = match &cwd {
+        Some(dir) if dir != "." && !dir.is_empty() => dir.clone(),
+        _ => dirs::home_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/"))
+            .to_string_lossy()
+            .into_owned(),
+    };
+    cmd.cwd(&effective_cwd);
+
+    // Ensure TERM is always set. When the app is launched from Finder / launchd
+    // (production builds), the parent environment has no TERM variable. Without
+    // TERM, the shell cannot properly configure the PTY (e.g. zsh doesn't
+    // disable raw echo when entering zle), causing every character to appear
+    // twice: once from PTY echo and once from the shell's line-editor rendering.
+    cmd.env("TERM", "xterm-256color");
+    // Set COLORTERM so programs can detect true-color support
+    cmd.env("COLORTERM", "truecolor");
 
     if let Some(env_vars) = &env {
         for (key, value) in env_vars {
@@ -178,12 +198,14 @@ pub fn spawn_pty_internal(
     let handle = app_handle.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        let mut seq: u64 = 0;
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {
                     // EOF — process exited; harvest exit code from child
                     let exit_code = harvest_exit_code(&handle, &reader_pane_id);
-                    let _ = handle.emit(
+                    let _ = handle.emit_to(
+                        "main",
                         "pty_exit",
                         PtyExitPayload {
                             pane_id: reader_pane_id.clone(),
@@ -193,18 +215,22 @@ pub fn spawn_pty_internal(
                     break;
                 }
                 Ok(n) => {
-                    let _ = handle.emit(
+                    seq += 1;
+                    let _ = handle.emit_to(
+                        "main",
                         "pty_output",
                         PtyOutputPayload {
                             pane_id: reader_pane_id.clone(),
                             data: buf[..n].to_vec(),
+                            seq,
                         },
                     );
                 }
                 Err(_) => {
                     // Read failure — harvest exit code and emit exit event
                     let exit_code = harvest_exit_code(&handle, &reader_pane_id);
-                    let _ = handle.emit(
+                    let _ = handle.emit_to(
+                        "main",
                         "pty_exit",
                         PtyExitPayload {
                             pane_id: reader_pane_id.clone(),

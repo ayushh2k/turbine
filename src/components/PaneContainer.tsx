@@ -469,6 +469,7 @@ function LeafPane({
             className="pane-title-bar__close"
             onClick={handleClosePane}
             title="Close pane"
+            aria-label="Close pane"
           >
             ×
           </button>

@@ -22,6 +22,9 @@ pub struct PaneConfig {
     pub startup_command: Option<String>,
     pub auto_launch: bool,
     pub env_vars: HashMap<String, String>,
+    pub label: Option<String>,
+    pub title: Option<String>,
+    pub task_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

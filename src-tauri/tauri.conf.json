@@ -24,11 +24,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: blob: data:; media-src 'self' asset: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:*"
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: blob: data:; media-src 'self' asset: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:*"
     }
   },
   "plugins": {
     "updater": {
+      "active": false,
       "endpoints": ["https://github.com/ayushh2k/turbine/releases/latest/download/latest.json"],
       "pubkey": ""
     }
@@ -42,6 +43,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "dmg": {
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 },
+        "windowSize": { "width": 660, "height": 400 }
+      }
+    }
   }
 }

@@ -5,7 +5,8 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { searchKeymap, openSearchPanel } from '@codemirror/search';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { detectLanguage, getLanguageExtension } from '../utils/languageDetect';
 import type { FileContent } from '../types';
 import './CodeViewer.css';
@@ -175,11 +176,24 @@ export function CodeViewer({
 
     invoke('watch_file', { path: currentPath }).catch(() => {});
 
-    listen<string | { path: string }>('file_changed', (event) => {
+    const appWindow = getCurrentWebviewWindow();
+    appWindow.listen<string | { path: string }>('file_changed', (event) => {
       const changedPath =
         typeof event.payload === 'string' ? event.payload : event.payload.path;
 
       if (changedPath === currentPath) {
+        // If the editor has unsaved changes, don't silently overwrite them.
+        // Show a notification and let the user decide.
+        const currentContent = view.state.doc.toString();
+        const savedContent = savedContentsRef.current[currentPath] ?? '';
+        const isDirty = currentContent !== savedContent;
+
+        if (isDirty) {
+          // File changed externally while editor has unsaved edits — notify user
+          setError('File changed on disk. You have unsaved edits — save to keep your changes, or close and reopen to load the external version.');
+          return;
+        }
+
         loadFile(currentPath, view, setError)
           .then((content) => {
             if (lastRequestedFileRef.current !== currentPath) {

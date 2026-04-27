@@ -56,8 +56,8 @@ pub fn save_workspace(
     for pane in &workspace.panes {
         let env_json = serde_json::to_string(&pane.env_vars).map_err(|e| e.to_string())?;
         conn.execute(
-            "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 pane.id,
                 pane.workspace_id,
@@ -66,6 +66,9 @@ pub fn save_workspace(
                 pane.startup_command,
                 pane.auto_launch as i32,
                 env_json,
+                pane.label,
+                pane.title,
+                pane.task_id,
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -125,7 +128,7 @@ pub fn load_workspaces(db: State<'_, DbState>) -> Result<Vec<WorkspaceConfig>, S
 fn load_panes_for_workspace(conn: &Connection, workspace_id: &str) -> Result<Vec<PaneConfig>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json
+            "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id
              FROM panes WHERE workspace_id = ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -140,13 +143,16 @@ fn load_panes_for_workspace(conn: &Connection, workspace_id: &str) -> Result<Vec
                 row.get::<_, Option<String>>(4)?,
                 row.get::<_, i32>(5)?,
                 row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
             ))
         })
         .map_err(|e| e.to_string())?;
 
     let mut panes = Vec::new();
     for pane_result in pane_rows {
-        let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json) =
+        let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id) =
             pane_result.map_err(|e| e.to_string())?;
 
         let env_vars: HashMap<String, String> = env_vars_json
@@ -162,6 +168,9 @@ fn load_panes_for_workspace(conn: &Connection, workspace_id: &str) -> Result<Vec
             startup_command,
             auto_launch: auto_launch != 0,
             env_vars,
+            label,
+            title,
+            task_id,
         });
     }
 

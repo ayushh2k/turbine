@@ -34,6 +34,9 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
             startup_command TEXT,
             auto_launch INTEGER NOT NULL DEFAULT 0,
             env_vars_json TEXT,
+            label TEXT,
+            title TEXT,
+            task_id TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -296,6 +299,23 @@ fn run_migrations(conn: &Connection) -> SqliteResult<()> {
         )?;
     }
 
+    // Migration 8: Add label, title, task_id columns to panes if missing
+    let has_label: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('panes') WHERE name = 'label'")?
+        .query_row([], |row| row.get::<_, i64>(0))
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !has_label {
+        conn.execute_batch(
+            "
+            ALTER TABLE panes ADD COLUMN label TEXT;
+            ALTER TABLE panes ADD COLUMN title TEXT;
+            ALTER TABLE panes ADD COLUMN task_id TEXT;
+            "
+        )?;
+    }
+
     Ok(())
 }
 
@@ -482,8 +502,8 @@ mod tests {
             let env_json =
                 serde_json::to_string(&pane.env_vars).map_err(|e| e.to_string())?;
             conn.execute(
-                "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO panes (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 rusqlite::params![
                     pane.id,
                     pane.workspace_id,
@@ -492,6 +512,9 @@ mod tests {
                     pane.startup_command,
                     pane.auto_launch as i32,
                     env_json,
+                    pane.label,
+                    pane.title,
+                    pane.task_id,
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -553,7 +576,7 @@ mod tests {
     ) -> Result<Vec<PaneConfig>, String> {
         let mut stmt = conn
             .prepare(
-                "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json
+                "SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id
                  FROM panes WHERE workspace_id = ?1",
             )
             .map_err(|e| e.to_string())?;
@@ -568,13 +591,16 @@ mod tests {
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, i32>(5)?,
                     row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
                 ))
             })
             .map_err(|e| e.to_string())?;
 
         let mut panes = Vec::new();
         for pane_result in rows {
-            let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json) =
+            let (id, ws_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, label, title, task_id) =
                 pane_result.map_err(|e| e.to_string())?;
 
             let env_vars: HashMap<String, String> = env_vars_json
@@ -590,6 +616,9 @@ mod tests {
                 startup_command,
                 auto_launch: auto_launch != 0,
                 env_vars,
+                label,
+                title,
+                task_id,
             });
         }
 
@@ -756,8 +785,11 @@ mod tests {
             arb_opt_string(),       // startup_command
             any::<bool>(),          // auto_launch
             arb_env_vars(),         // env_vars
+            arb_opt_string(),       // label
+            arb_opt_string(),       // title
+            arb_opt_string(),       // task_id
         )
-            .prop_map(move |(id, pane_type, wd, cmd, auto_launch, env_vars)| {
+            .prop_map(move |(id, pane_type, wd, cmd, auto_launch, env_vars, label, title, task_id)| {
                 PaneConfig {
                     id,
                     workspace_id: workspace_id.clone(),
@@ -766,6 +798,9 @@ mod tests {
                     startup_command: cmd,
                     auto_launch,
                     env_vars,
+                    label,
+                    title,
+                    task_id,
                 }
             })
     }
@@ -784,7 +819,14 @@ mod tests {
                 prop::collection::vec(arb_pane_config(ws_id), 0..8),
             )
                 .prop_map(
-                    |(id, name, tab_color, tab_order, layout_json, is_active, board_columns_json, panes)| {
+                    |(id, name, tab_color, tab_order, layout_json, is_active, board_columns_json, mut panes)| {
+                        // Ensure pane IDs are unique (proptest may generate duplicates)
+                        let mut seen = std::collections::HashSet::new();
+                        for (i, pane) in panes.iter_mut().enumerate() {
+                            if !seen.insert(pane.id.clone()) {
+                                pane.id = format!("{}_{}", pane.id, i);
+                            }
+                        }
                         WorkspaceConfig {
                             id,
                             name,

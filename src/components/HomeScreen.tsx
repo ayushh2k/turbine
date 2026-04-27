@@ -60,7 +60,7 @@ export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette, onSele
         {/* Search prompt */}
         <button className="home-screen__search" onClick={onOpenPalette}>
           <span className="home-screen__search-text">Search commands, files, and workspaces...</span>
-          <kbd className="home-screen__search-kbd">Ctrl+P</kbd>
+          <kbd className="home-screen__search-kbd">Ctrl+Shift+P</kbd>
         </button>
 
         {/* Open folder */}

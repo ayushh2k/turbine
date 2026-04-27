@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { SwarmRun, SwarmAgent, MailboxMessage, SwarmStatus, WorkflowStep, Task } from '../types';
 
 const OUTPUT_BUFFER_MAX = 10 * 1024; // 10KB rolling buffer per agent
@@ -80,7 +81,8 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
       const unlisteners: UnlistenFn[] = [];
 
       // Listen for PTY output from swarm agents
-      const unlisten1 = await listen<{ pane_id: string; data: number[] }>('pty_output', (event) => {
+      const appWindow = getCurrentWebviewWindow();
+      const unlisten1 = await appWindow.listen<{ pane_id: string; data: number[] }>('pty_output', (event) => {
         const { pane_id, data } = event.payload;
         if (!pane_id.startsWith('swarm-')) return;
 
@@ -100,7 +102,7 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
       unlisteners.push(unlisten1);
 
       // Listen for PTY exit events from swarm agents
-      const unlisten2 = await listen<{ pane_id: string; exit_code: number | null }>('pty_exit', (event) => {
+      const unlisten2 = await appWindow.listen<{ pane_id: string; exit_code: number | null }>('pty_exit', (event) => {
         const { pane_id, exit_code } = event.payload;
         if (!pane_id.startsWith('swarm-')) return;
 

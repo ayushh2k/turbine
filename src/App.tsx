@@ -53,11 +53,29 @@ function App() {
 
   const handleHomeSelectType = useCallback((type: PaneConfig['type']) => {
     setShowHome(false);
-    const ws = useWorkspaceStore.getState().workspaces.find(
-      (w) => w.id === useWorkspaceStore.getState().activeWorkspaceId,
+    const state = useWorkspaceStore.getState();
+    const ws = state.workspaces.find(
+      (w) => w.id === state.activeWorkspaceId,
     );
-    const targetPaneId = ws?.panes[0]?.id;
-    if (!targetPaneId || !ws) return;
+
+    // No active workspace — create a new one with the selected pane type
+    if (!ws) {
+      const newWs = state.createWorkspace();
+      const paneId = newWs.panes[0]?.id;
+      if (paneId) {
+        useWorkspaceStore.setState((s) => ({
+          workspaces: s.workspaces.map((w) =>
+            w.id === newWs.id
+              ? { ...w, panes: w.panes.map((p) => (p.id === paneId ? { ...p, type } : p)) }
+              : w,
+          ),
+        }));
+      }
+      return;
+    }
+
+    const targetPaneId = ws.panes[0]?.id;
+    if (!targetPaneId) return;
     useWorkspaceStore.setState((s) => ({
       workspaces: s.workspaces.map((w) =>
         w.id === ws.id
@@ -76,6 +94,7 @@ function App() {
     activeWorkspaceId,
     switchWorkspace,
     createWorkspace,
+    deleteWorkspace,
     persistAll,
     startAutoSave,
     stopAutoSave,
@@ -124,11 +143,12 @@ function App() {
     applyTheme(settings.theme);
   }, [settings.theme]);
 
+  // Show home screen when all workspaces are closed
   useEffect(() => {
     if (!loading && workspaces.length === 0) {
-      createWorkspace('Workspace 1');
+      setShowHome(true);
     }
-  }, [loading, workspaces.length, createWorkspace]);
+  }, [loading, workspaces.length]);
 
   // Dismiss home view when user switches workspace
   useEffect(() => {
@@ -232,6 +252,13 @@ function App() {
   const handleClosePane = useCallback(
     (paneId: string) => {
       if (!activeWorkspace || !activeWorkspaceId) return;
+
+      // If this is the last pane, close the entire workspace tab
+      if (activeWorkspace.layout.type === 'leaf') {
+        deleteWorkspace(activeWorkspaceId);
+        return;
+      }
+
       const newLayout = closePane(activeWorkspace.layout, paneId);
       const remainingIds = findLeafIds(newLayout);
       useWorkspaceStore.setState((s) => ({
@@ -246,7 +273,7 @@ function App() {
         setFocusedPaneId(remainingIds[0]);
       }
     },
-    [activeWorkspace, activeWorkspaceId, focusedPaneId],
+    [activeWorkspace, activeWorkspaceId, focusedPaneId, deleteWorkspace],
   );
 
   const handleResize = useCallback(
@@ -453,6 +480,9 @@ function App() {
       if (!activeWorkspace || !activeWorkspaceId) {
         return;
       }
+
+      // Dismiss the home overlay so the workspace panes are visible
+      setShowHome(false);
 
       const paneType = getPaneTypeForPath(filePath);
 
@@ -713,14 +743,20 @@ function App() {
       });
     }
 
-    // Theme selection
+    // Theme selection — live preview on arrow keys, revert on Escape
+    const currentThemeId = useSettingsStore.getState().settings.theme;
     for (const theme of getAllThemes()) {
       actions.push({
         id: `theme-${theme.id}`,
         label: theme.name,
         category: 'Theme',
         type: 'command',
-        handler: () => useSettingsStore.getState().saveSettings({ theme: theme.id }),
+        handler: () => {
+          applyTheme(theme.id);
+          useSettingsStore.getState().saveSettings({ theme: theme.id });
+        },
+        preview: () => applyTheme(theme.id),
+        revertPreview: () => applyTheme(currentThemeId),
       });
     }
 
@@ -769,7 +805,7 @@ function App() {
             onRunTask={handleRunTaskCommand}
           />
           <div className="app__workspace">
-            {showHome ? (
+            {showHome || workspaces.length === 0 ? (
               <HomeScreen
                 paneId="__home__"
                 workspaceId={activeWorkspaceId ?? ''}
