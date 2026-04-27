@@ -96,7 +96,7 @@ Dark-first design with Subnautica as the default. Switch themes live from the se
 
 ```bash
 git clone https://github.com/ayushh2k/turbine.git
-cd turbine/turbine-app
+cd turbine
 pnpm install
 pnpm tauri dev
 ```
@@ -106,8 +106,6 @@ First run is slow (Rust compilation). Subsequent runs use incremental builds.
 ```bash
 pnpm tauri build    # Production build
 ```
-
-> Always use `pnpm`, not `npm`.
 
 ### Optional: AI Agent CLIs
 
@@ -131,28 +129,6 @@ Any CLI tool that reads stdin/stdout works. Configure custom agent presets in th
 | Terminal | [xterm.js](https://xtermjs.org) (WebGL) |
 | Code editor | [CodeMirror 6](https://codemirror.net) |
 | Database | SQLite (embedded) |
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                  Tauri Window                    │
-│  ┌───────────────────────────────────────────┐  │
-│  │  React 19 Frontend                        │  │
-│  │  TabBar · PaneContainer · CommandPalette  │  │
-│  │  Zustand stores · Layout engine · Themes  │  │
-│  └──────────────────┬────────────────────────┘  │
-│                     │ IPC (invoke / listen)      │
-│  ┌──────────────────┴────────────────────────┐  │
-│  │  Rust Backend                             │  │
-│  │  PTY Manager · SQLite · File Watcher      │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-```
-
-Key entry points: `src/App.tsx`, `src/state/workspaceStore.ts`, `src/state/layoutEngine.ts`, `src-tauri/src/lib.rs`, `src-tauri/src/pty_manager.rs`
-
-See [`docs/codebase-map.md`](docs/codebase-map.md) for a guided walkthrough.
 
 ## Contributing
 
