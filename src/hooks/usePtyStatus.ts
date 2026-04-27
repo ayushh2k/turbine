@@ -113,28 +113,34 @@ export function usePtyStatusListener() {
         exit_code === null || exit_code !== 0 ? 'errored' : 'exited';
       setStatus(pane_id, status, exit_code);
 
-      // Notify when a process exits in a non-focused pane
-      {
+      // Notify only when a process exits with a non-zero code in a non-focused pane.
+      // Clean exits (code 0) are expected and don't need a toast — they'd spam the user
+      // when closing workspaces, splitting panes, or running quick commands.
+      // Also skip notifications for panes that no longer exist in any workspace
+      // (layout template changes replace all panes, causing mass PTY kills).
+      if (exit_code !== null && exit_code !== 0) {
+        const ws = useWorkspaceStore.getState();
+        let paneLabel: string | null = null;
+        for (const workspace of ws.workspaces) {
+          const pane = workspace.panes.find((p) => p.id === pane_id);
+          if (pane) {
+            paneLabel = pane.title || pane.label || pane.id;
+            break;
+          }
+        }
+
+        // Pane no longer exists — it was removed by a layout change, not a real failure
+        if (paneLabel === null) return;
+
         const focusedElement = document.activeElement;
         const paneContainer = document.querySelector(`[data-pane-id="${pane_id}"]`);
         const isFocused = paneContainer != null && paneContainer.contains(focusedElement);
 
         if (!isFocused) {
-          const ws = useWorkspaceStore.getState();
-          let paneLabel = pane_id;
-          for (const workspace of ws.workspaces) {
-            const pane = workspace.panes.find((p) => p.id === pane_id);
-            if (pane) {
-              paneLabel = pane.label || pane.id;
-              break;
-            }
-          }
-          const codeStr = exit_code != null ? String(exit_code) : 'unknown';
-          const notifType = exit_code === 0 ? 'success' : 'warning';
           useNotificationStore.getState().addNotification(
-            'Process exited',
-            `${paneLabel} (exit code: ${codeStr})`,
-            notifType,
+            'Process failed',
+            `${paneLabel} (exit code: ${exit_code})`,
+            'warning',
           );
         }
       }
