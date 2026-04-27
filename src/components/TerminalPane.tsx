@@ -68,6 +68,7 @@ function TerminalPaneInner({
   const showScrollDownRef = useRef(false);
   const scrollRafRef = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [fileDragOver, setFileDragOver] = useState(false);
   const broadcastWriteRef = useRef<typeof broadcastWrite>(broadcastWrite);
   const {
     blocks: commandBlocks,
@@ -466,8 +467,35 @@ function TerminalPaneInner({
     terminalRef.current?.scrollToBottom();
   }, []);
 
+  const handleFileDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/turbine-filepath') || e.dataTransfer.types.includes('text/plain')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setFileDragOver(true);
+    }
+  }, []);
+
+  const handleFileDragLeave = useCallback(() => {
+    setFileDragOver(false);
+  }, []);
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setFileDragOver(false);
+    const filePath = e.dataTransfer.getData('application/turbine-filepath');
+    if (filePath) {
+      // Quote the path if it contains spaces
+      const safePath = filePath.includes(' ') ? `"${filePath}"` : filePath;
+      const encoder = new TextEncoder();
+      invoke('pty_write', {
+        paneId,
+        data: Array.from(encoder.encode(safePath)),
+      }).catch(() => {});
+    }
+  }, [paneId]);
+
   return (
-    <div className="terminal-pane" data-pane-id={paneId} onClick={handleFocus} onContextMenu={handleContextMenuEvent}>
+    <div className={`terminal-pane${fileDragOver ? ' terminal-pane--file-drag-over' : ''}`} data-pane-id={paneId} onClick={handleFocus} onContextMenu={handleContextMenuEvent} onDragOver={handleFileDragOver} onDragLeave={handleFileDragLeave} onDrop={handleFileDrop}>
       <div className="terminal-pane__container" ref={containerRef} />
       {commandBlocks.length > 0 && !showCommandBlocks && (
         <button

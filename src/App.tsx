@@ -26,6 +26,9 @@ import { openWorkspaceFolder } from './utils/openWorkspaceFolder';
 import { UpdateNotification } from './components/UpdateNotification';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SearchBar } from './components/SearchBar';
+import { BroadcastOverlay } from './components/BroadcastOverlay';
+import { ShortcutSheet } from './components/ShortcutSheet';
+import { usePtyStatusStore } from './hooks/usePtyStatus';
 import './App.css';
 
 function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
@@ -45,6 +48,7 @@ function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHome, setShowHome] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [activePanel, setActivePanel] = useState<SidePanelId | null>(null);
 
   const handlePanelToggle = useCallback((panel: SidePanelId) => {
@@ -252,6 +256,17 @@ function App() {
   const handleClosePane = useCallback(
     (paneId: string) => {
       if (!activeWorkspace || !activeWorkspaceId) return;
+
+      // Check if this is a terminal with a running process
+      const pane = activeWorkspace.panes.find((p) => p.id === paneId);
+      if (pane?.type === 'terminal') {
+        const entry = usePtyStatusStore.getState().statuses.get(paneId);
+        if (entry && entry.status === 'running') {
+          // Show native confirm for keyboard-shortcut-triggered closes
+          const confirmed = window.confirm('This terminal has a running process. Close anyway?');
+          if (!confirmed) return;
+        }
+      }
 
       // If this is the last pane, close the entire workspace tab
       if (activeWorkspace.layout.type === 'leaf') {
@@ -471,6 +486,14 @@ function App() {
     [activeWorkspace, activeWorkspaceId],
   );
 
+  const handleDetachPane = useCallback(
+    (paneId: string) => {
+      if (!activeWorkspaceId) return;
+      useWorkspaceStore.getState().detachPane(activeWorkspaceId, paneId);
+    },
+    [activeWorkspaceId],
+  );
+
   const handleRefreshProjectFiles = useCallback(() => {
     setFileIndexVersion((version) => version + 1);
   }, []);
@@ -560,6 +583,7 @@ function App() {
     toggleBroadcast,
     setShowPalette,
     setShowSettings,
+    setShowShortcuts,
     setFocusedPaneId,
   });
 
@@ -571,6 +595,7 @@ function App() {
       { id: 'new-workspace-web-dev', label: 'New Workspace (Web Dev)', category: 'Workspace', type: 'command', handler: () => createWorkspace('Web Dev', createWebDevPreset()) },
       { id: 'toggle-broadcast', label: 'Toggle Broadcast Mode', category: 'Broadcast', shortcut: 'Ctrl+Shift+B', type: 'command', handler: toggleBroadcast },
       { id: 'open-settings', label: 'Open Settings', category: 'App', shortcut: 'Ctrl+,', type: 'command', handler: () => setShowSettings(true) },
+      { id: 'show-shortcuts', label: 'Keyboard Shortcuts', category: 'Help', shortcut: 'Ctrl+/', type: 'command', handler: () => setShowShortcuts(true) },
       { id: 'refresh-project-files', label: 'Refresh Project Files', category: 'File', type: 'command', handler: handleRefreshProjectFiles },
     ];
 
@@ -767,8 +792,11 @@ function App() {
     return (
       <div className="app" role="status" aria-label="Loading Turbine">
         <div className="app__loading">
-          <div className="app__loading-spinner" />
-          <span>Starting Turbine...</span>
+          <div className="app__loading-logo" aria-hidden="true">Turbine</div>
+          <div className="app__loading-bar">
+            <div className="app__loading-bar-fill" />
+          </div>
+          <span className="app__loading-text">Starting Turbine...</span>
         </div>
       </div>
     );
@@ -835,6 +863,7 @@ function App() {
                     onPaneConfigChange={handlePaneConfigChange}
                     onMovePane={handleMovePane}
                     onRunTask={workspace.id === activeWorkspaceId ? handleRunTaskCommand : undefined}
+                    onDetachPane={workspace.id === activeWorkspaceId ? handleDetachPane : undefined}
                     onOpenPalette={() => setShowPalette(true)}
                     themeId={settings.theme}
                   />
@@ -853,6 +882,14 @@ function App() {
 
         {showSettings && (
           <SettingsPanel onClose={() => setShowSettings(false)} />
+        )}
+
+        {showShortcuts && (
+          <ShortcutSheet onClose={() => setShowShortcuts(false)} />
+        )}
+
+        {broadcastMode && (
+          <BroadcastOverlay focusedPaneId={focusedPaneId} />
         )}
 
         {contextMenuElement}

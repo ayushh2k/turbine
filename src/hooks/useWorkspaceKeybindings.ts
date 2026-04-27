@@ -36,6 +36,7 @@ interface UseWorkspaceKeybindingsOptions {
   toggleBroadcast: () => void;
   setShowPalette: Dispatch<SetStateAction<boolean>>;
   setShowSettings: Dispatch<SetStateAction<boolean>>;
+  setShowShortcuts: Dispatch<SetStateAction<boolean>>;
   setFocusedPaneId: Dispatch<SetStateAction<string | null>>;
 }
 
@@ -52,6 +53,7 @@ export function useWorkspaceKeybindings({
   toggleBroadcast,
   setShowPalette,
   setShowSettings,
+  setShowShortcuts,
   setFocusedPaneId,
 }: UseWorkspaceKeybindingsOptions) {
   // Track mouse position for Hyprland-style smart split
@@ -94,6 +96,7 @@ export function useWorkspaceKeybindings({
     });
     km.register('toggleBroadcast', toggleBroadcast);
     km.register('openSettings', () => setShowSettings((visible) => !visible));
+    km.register('showShortcuts', () => setShowShortcuts((visible) => !visible));
     km.register('search', () => {
       if (focusedPaneId) {
         window.dispatchEvent(
@@ -172,6 +175,7 @@ export function useWorkspaceKeybindings({
     toggleBroadcast,
     setShowPalette,
     setShowSettings,
+    setShowShortcuts,
     setFocusedPaneId,
   ]);
 }

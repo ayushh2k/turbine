@@ -116,3 +116,10 @@
     transform: translateY(0);
   }
 }
+
+/* File drag-over state — cyan border glow when dragging a file from FileBrowser */
+.terminal-pane--file-drag-over {
+  outline: 2px solid var(--color-accent, #00e5c8);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 20px rgba(0, 229, 200, 0.08);
+}

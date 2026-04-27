@@ -13,7 +13,8 @@ export type Action =
   | 'search'
   | 'searchPanes'
   | 'toggleBroadcast'
-  | 'openSettings';
+  | 'openSettings'
+  | 'showShortcuts';
 
 /** Modifier-aware key string, e.g. "Ctrl+Shift+D" */
 type KeyCombo = string;
@@ -37,6 +38,7 @@ const DEFAULT_BINDINGS: Record<Action, KeyCombo> = {
   searchPanes: 'Ctrl+Shift+F',
   toggleBroadcast: 'Ctrl+Shift+B',
   openSettings: 'Ctrl+,',
+  showShortcuts: 'Ctrl+/',
 };
 
 type ActionHandler = () => void;

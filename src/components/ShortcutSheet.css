@@ -1,0 +1,135 @@
+.shortcut-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: shortcut-sheet-fade-in 0.12s ease-out;
+}
+
+@keyframes shortcut-sheet-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.shortcut-sheet {
+  width: min(640px, 90vw);
+  max-height: min(520px, 80vh);
+  background: var(--color-bg, #0b1929);
+  border: 1px solid var(--color-accent, #00e5c8);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+
+.shortcut-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shortcut-sheet__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg, #c8dce8);
+  margin: 0;
+}
+
+.shortcut-sheet__close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--color-fg, #c8dce8);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.shortcut-sheet__close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.shortcut-sheet__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 32px;
+}
+
+.shortcut-sheet__group {
+  min-width: 0;
+}
+
+.shortcut-sheet__group-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent, #00e5c8);
+  margin: 0 0 8px;
+  opacity: 0.8;
+}
+
+.shortcut-sheet__entries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shortcut-sheet__entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 12px;
+}
+
+.shortcut-sheet__action {
+  font-size: 12px;
+  color: var(--color-fg, #c8dce8);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shortcut-sheet__kbd {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: var(--color-fg, #c8dce8);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Scrollbar */
+.shortcut-sheet__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.shortcut-sheet__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.shortcut-sheet__body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}

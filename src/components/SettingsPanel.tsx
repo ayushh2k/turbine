@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<Action, string> = {
   workspace8: 'Workspace 8',
   workspace9: 'Workspace 9',
   openSettings: 'Open Settings',
+  showShortcuts: 'Keyboard Shortcuts',
 };
 
 interface SettingsPanelProps {
@@ -127,15 +128,6 @@ function GeneralSection() {
   );
   const [themeImportError, setThemeImportError] = useState<string | null>(null);
 
-  const handleThemeChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const themeId = e.target.value;
-      saveSettings({ theme: themeId });
-      applyTheme(themeId);
-    },
-    [saveSettings],
-  );
-
   const handleShellBlur = useCallback(() => {
     const value = defaultShell.trim() || null;
     if (value !== settings.defaultShell) {
@@ -180,17 +172,36 @@ function GeneralSection() {
 
       <div className="settings-panel__field">
         <label className="settings-panel__label">Theme</label>
-        <select
-          className="settings-panel__select"
-          value={settings.theme}
-          onChange={handleThemeChange}
-        >
-          {themes.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+        <div className="settings-panel__theme-grid">
+          {themes.map((t) => {
+            const isActive = settings.theme === t.id;
+            const tc = t.colors.terminal;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={`settings-panel__theme-card ${isActive ? 'settings-panel__theme-card--active' : ''}`}
+                onClick={() => {
+                  saveSettings({ theme: t.id });
+                  applyTheme(t.id);
+                }}
+              >
+                <div className="settings-panel__theme-swatches">
+                  <span className="settings-panel__swatch" style={{ background: t.colors.background }} title="Background" />
+                  <span className="settings-panel__swatch" style={{ background: t.colors.foreground }} title="Foreground" />
+                  <span className="settings-panel__swatch" style={{ background: t.colors.accent }} title="Accent" />
+                  <span className="settings-panel__swatch" style={{ background: tc.red }} title="Red" />
+                  <span className="settings-panel__swatch" style={{ background: tc.green }} title="Green" />
+                  <span className="settings-panel__swatch" style={{ background: tc.blue }} title="Blue" />
+                  <span className="settings-panel__swatch" style={{ background: tc.yellow }} title="Yellow" />
+                  <span className="settings-panel__swatch" style={{ background: tc.cyan }} title="Cyan" />
+                </div>
+                <span className="settings-panel__theme-name">{t.name}</span>
+                {isActive && <span className="settings-panel__theme-check" aria-label="Active">✓</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="settings-panel__field">

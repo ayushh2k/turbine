@@ -10,7 +10,9 @@ import { TaskBoard } from './TaskBoard';
 import { DiffViewer } from './DiffViewer';
 import { SwarmPanel } from './SwarmPanel';
 import { PaneToolbar } from './PaneToolbar';
+import { CloseConfirmDialog } from './CloseConfirmDialog';
 import { usePaneStatus } from '../hooks/usePtyStatus';
+import { usePtyStatusStore } from '../hooks/usePtyStatus';
 import { useWorkspaceStore } from '../state/workspaceStore';
 import './PaneContainer.css';
 
@@ -254,6 +256,7 @@ function LeafPane({
   const [isDragging, setIsDragging] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const leafRef = useRef<HTMLDivElement>(null);
   const dragLeaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -333,7 +336,24 @@ function LeafPane({
   const handleFocusPane = useCallback(() => onFocusPane(paneId), [onFocusPane, paneId]);
   const handleSplitH = useCallback(() => onSplitH(paneId), [onSplitH, paneId]);
   const handleSplitV = useCallback(() => onSplitV(paneId), [onSplitV, paneId]);
-  const handleClosePane = useCallback(() => onClosePane(paneId), [onClosePane, paneId]);
+  const handleClosePane = useCallback(() => {
+    // Check if this is a terminal with a running process
+    if (pane?.type === 'terminal') {
+      const entry = usePtyStatusStore.getState().statuses.get(paneId);
+      if (entry && entry.status === 'running') {
+        setShowCloseConfirm(true);
+        return;
+      }
+    }
+    onClosePane(paneId);
+  }, [onClosePane, paneId, pane?.type]);
+  const handleConfirmClose = useCallback(() => {
+    setShowCloseConfirm(false);
+    onClosePane(paneId);
+  }, [onClosePane, paneId]);
+  const handleCancelClose = useCallback(() => {
+    setShowCloseConfirm(false);
+  }, []);
   const handleDetachPane = useCallback(() => onDetachPane?.(paneId), [onDetachPane, paneId]);
   
   const handleActiveFileChange = useCallback(
@@ -558,6 +578,12 @@ function LeafPane({
         onStartupCommandChange={onPaneConfigChange && pane?.type === 'terminal' ? handleStartupCommandChange : undefined}
         onRunCommand={pane?.type === 'terminal' ? handleRunCommand : undefined}
       />}
+      {showCloseConfirm && (
+        <CloseConfirmDialog
+          onConfirm={handleConfirmClose}
+          onCancel={handleCancelClose}
+        />
+      )}
     </div>
   );
 }

@@ -303,6 +303,12 @@ export function FileBrowser({
               <button
                 key={entry.path}
                 type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/turbine-filepath', entry.path);
+                  e.dataTransfer.setData('text/plain', entry.path);
+                  e.dataTransfer.effectAllowed = 'copyMove';
+                }}
                 className={[
                   'file-browser__file',
                   entry.path === activeFilePath ? 'file-browser__file--active' : '',
@@ -372,6 +378,12 @@ function TreeNode({
     return (
       <button
         type="button"
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/turbine-filepath', node.path);
+          e.dataTransfer.setData('text/plain', node.path);
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
         className={[
           'file-browser__row',
           'file-browser__row--file',
