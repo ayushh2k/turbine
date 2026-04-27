@@ -90,28 +90,29 @@ jobs:
             patchelf
 
       # -- Build + upload artifacts -------------------------------------------
+      # NOTE: macOS builds are unsigned. To enable code signing, add these repo secrets:
+      #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+      #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+      # Then uncomment the Apple env vars in the Build step below.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS code signing (set these as repo secrets to enable)
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Tauri v2 updater signing key (set as repo secret to enable auto-updates)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Uncomment these when Apple Developer signing is configured:
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
           releaseName: "Turbine ${{ github.ref_name }}"
           releaseBody: |
-            ## What's new in ${{ github.ref_name }}
-
-            See [CHANGELOG.md](https://github.com/ayushh2k/turbine/blob/main/CHANGELOG.md) for full release notes.
+            ## Turbine ${{ github.ref_name }}
 
             ### Downloads
 
@@ -121,6 +122,8 @@ jobs:
             | macOS (Intel) | `Turbine_*_x64.dmg` |
             | Linux | `turbine-app_*_amd64.deb` / `turbine-app_*_amd64.AppImage` |
             | Windows | `Turbine_*_x64-setup.exe` / `Turbine_*_x64_en-US.msi` |
+
+            > macOS builds are unsigned. Right-click → Open to bypass Gatekeeper.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           includeUpdaterJson: true
