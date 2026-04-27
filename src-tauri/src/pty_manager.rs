@@ -204,7 +204,7 @@ pub fn spawn_pty_internal(
 
         // Start with the current PATH (if any), then prepend the extra paths
         let current_path = std::env::var("PATH").unwrap_or_default();
-        let mut all_paths: Vec<&str> = extra_paths.iter().copied().collect();
+        let mut all_paths: Vec<&str> = extra_paths.to_vec();
         if !current_path.is_empty() {
             // Append existing PATH entries that aren't already covered
             for p in current_path.split(':') {
