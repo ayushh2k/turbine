@@ -6,12 +6,27 @@ Turbine is an open-source mission control for AI coding agents. Run Claude Code,
 
 Built on [Tauri v2](https://tauri.app) with a Rust backend and React 19 frontend.
 
-<!-- Screenshots — replace with actual captures -->
-<!-- ![Turbine Hero](docs/demo/hero.gif) -->
+![Turbine Hero](docs/demo/hero.gif)
 
 ## Screenshots
 
-> Screenshots coming soon. Run `pnpm tauri dev` to see it in action.
+### Home Screen
+![Home Screen](docs/demo/home.png)
+
+### Multi-Pane Workspace
+![Workspace](docs/demo/workspace.png)
+
+### Quick Pane Layouts
+![Quick Panes](docs/demo/quick_panes.gif)
+
+### Theme Switcher
+![Theme Switcher](docs/demo/theme_switcher.gif)
+
+### Task Board
+![Kanban Task Board](docs/demo/kanban.png)
+
+### Settings
+![Settings](docs/demo/settings.png)
 
 ## Features
 
