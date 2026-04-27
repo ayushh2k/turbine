@@ -135,6 +135,12 @@ pub fn spawn_pty_internal(
     if let Some(ref command_str) = command {
         cmd.arg("-c");
         cmd.arg(command_str);
+    } else {
+        // For interactive shells, use login mode (-l) so the shell sources
+        // its profile files (.zprofile, .zshrc, .bash_profile, etc.).
+        // This is critical on macOS production builds where the app is launched
+        // from Finder and doesn't inherit the user's shell environment.
+        cmd.arg("-l");
     }
 
     // Use provided cwd, falling back to the user's home directory.
@@ -156,6 +162,60 @@ pub fn spawn_pty_internal(
     cmd.env("TERM", "xterm-256color");
     // Set COLORTERM so programs can detect true-color support
     cmd.env("COLORTERM", "truecolor");
+
+    // When launched from Finder/Launchpad (production builds), macOS gives the
+    // process a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin). This means tools
+    // installed via Homebrew, nvm, cargo, go, etc. are not found.
+    // Build a comprehensive PATH that covers all common install locations.
+    // The user's shell profile (.zshrc) will further extend PATH for interactive
+    // shells, but we need the base PATH to be correct so the shell itself can
+    // find its plugins and the login process works.
+    {
+        let home = dirs::home_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/"))
+            .to_string_lossy()
+            .into_owned();
+
+        let extra_paths = [
+            // Homebrew (Apple Silicon + Intel)
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/local/sbin",
+            // User-local binaries
+            &format!("{home}/.local/bin"),
+            // Cargo (Rust)
+            &format!("{home}/.cargo/bin"),
+            // Go
+            &format!("{home}/go/bin"),
+            "/usr/local/go/bin",
+            // nvm / fnm / volta (Node.js version managers put shims here)
+            &format!("{home}/.nvm/versions/node/*/bin"),  // won't glob, but nvm sets PATH in .zshrc
+            &format!("{home}/.volta/bin"),
+            // pyenv
+            &format!("{home}/.pyenv/shims"),
+            &format!("{home}/.pyenv/bin"),
+            // System paths
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ];
+
+        // Start with the current PATH (if any), then prepend the extra paths
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let mut all_paths: Vec<&str> = extra_paths.iter().copied().collect();
+        if !current_path.is_empty() {
+            // Append existing PATH entries that aren't already covered
+            for p in current_path.split(':') {
+                if !all_paths.contains(&p) {
+                    all_paths.push(p);
+                }
+            }
+        }
+
+        cmd.env("PATH", all_paths.join(":"));
+    }
 
     if let Some(env_vars) = &env {
         for (key, value) in env_vars {
