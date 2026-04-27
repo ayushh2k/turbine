@@ -6,9 +6,9 @@ import './UpdateNotification.css';
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'ready' | 'error';
 
-// TODO: Set this to true and configure a valid pubkey in tauri.conf.json before release.
-// The updater requires code-signing to be configured for production use.
-const UPDATER_CONFIGURED = false;
+// Updater is configured with a valid signing keypair.
+// The TAURI_SIGNING_PRIVATE_KEY secret must be set in GitHub Actions for release builds.
+const UPDATER_CONFIGURED = true;
 
 export function UpdateNotification() {
   const [state, setState] = useState<UpdateState>('idle');
