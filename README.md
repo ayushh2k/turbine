@@ -1,103 +1,136 @@
-# Turbine
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="128" alt="Turbine logo" />
+</p>
 
-> **Developer Preview / Early Beta** — Turbine is under active development. Expect rough edges.
+<h1 align="center">Turbine</h1>
 
-Turbine is an open-source mission control for AI coding agents. Run Claude Code, Gemini CLI, OpenAI Codex, Kiro, Aider, or any CLI tool side-by-side in a tiled terminal workspace with built-in code editing, task management, and multi-agent orchestration.
+<p align="center">
+  <strong>Open-source mission control for AI coding agents</strong>
+</p>
 
-Built on [Tauri v2](https://tauri.app) with a Rust backend and React 19 frontend.
+<p align="center">
+  Run Claude Code, Gemini CLI, Codex, or any CLI tool side-by-side in a tiled terminal workspace with built-in code editing, task management, and multi-agent orchestration.
+</p>
 
-![Turbine Hero](docs/demo/hero.gif)
+<p align="center">
+  <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="docs/FEATURE_STATUS.md">Feature Status</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="#license">License</a>
+</p>
 
-## Screenshots
+<p align="center">
+  <img src="https://img.shields.io/badge/status-developer_preview-orange?style=flat-square" alt="Status: Developer Preview" />
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=flat-square" alt="Platforms" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/built_with-Tauri%20v2%20%2B%20React%2019-purple?style=flat-square" alt="Built with Tauri v2 + React 19" />
+</p>
 
-### Home Screen
-![Home Screen](docs/demo/home.png)
+<br />
 
-### Multi-Pane Workspace
-![Workspace](docs/demo/workspace.png)
+<p align="center">
+  <img src="docs/demo/hero.gif" alt="Turbine demo — multi-pane terminal workspace with AI agents" width="960" />
+</p>
 
-### Quick Pane Layouts
-![Quick Panes](docs/demo/quick_panes.gif)
+---
 
-### Theme Switcher
-![Theme Switcher](docs/demo/theme_switcher.gif)
+## What is Turbine?
 
-### Task Board
-![Kanban Task Board](docs/demo/kanban.png)
+Turbine is a native desktop app that gives you a single window to run, monitor, and coordinate multiple AI coding agents. Instead of juggling terminal tabs, editor windows, and task trackers, you get a tiled workspace where everything lives together.
 
-### Settings
-![Settings](docs/demo/settings.png)
+It's built on [Tauri v2](https://tauri.app) (Rust backend) and React 19 — not Electron — so it's fast and lightweight even with 16 terminals running simultaneously.
+
+**Turbine is not** an IDE or a replacement for your editor. It's the command center that sits alongside your editor, purpose-built for the workflow of delegating tasks to AI agents and watching them work in parallel.
 
 ## Features
 
-- **Multi-agent terminal** — run any CLI agent in parallel panes with full xterm.js rendering (WebGL)
-- **Binary tree pane layout** — split horizontally/vertically, resize, drag-and-drop to rearrange, templates for 1–16 panes
-- **AI swarm orchestration** — configure agent presets, launch multi-agent workflows, track status from a dedicated swarm panel
-- **Built-in code viewer** — CodeMirror 6 editor with syntax highlighting for 20+ languages, incremental loading, and save support
-- **Task board** — Kanban board with customizable columns, scoped per project
-- **Diff viewer** — review git diffs from agent-generated changes
-- **File browser** — side panel with tree view, git status indicators, and fuzzy search
-- **11 built-in themes** — Subnautica (default), Deep Ocean, Midnight Ember, Aurora Borealis, Neon Tokyo, Forest Canopy, Arctic Frost, Solar Flare, Void Purple, Copper Oxide, Monochrome
-- **Command palette** — fuzzy search for all actions via Ctrl+Shift+P
-- **Broadcast mode** — type once, send to all terminal panes simultaneously
-- **Notification center** — toast alerts when background processes complete
-- **Workspace persistence** — auto-save to SQLite, restore on startup
-- **Keyboard-driven** — fully customizable keybindings, directional pane navigation, workspace switching
-- **Custom pane titles** — double-click to rename any pane; titles persist across restarts
-- **Cross-platform** — macOS, Windows, Linux
+### Multi-pane terminal workspace
+Split your screen into up to 16 terminal panes. Resize, drag-to-swap, and navigate between panes with keyboard shortcuts. Apply layout templates instantly.
 
-For a detailed feature-by-feature status against the original spec, see [`docs/FEATURE_STATUS.md`](docs/FEATURE_STATUS.md).
+<p align="center">
+  <img src="docs/demo/quick_panes.gif" alt="Quick pane layout templates" width="720" />
+</p>
 
-## Prerequisites
+### Workspace tabs with persistence
+Each workspace tab has its own layout, pane configuration, and settings. Everything auto-saves to SQLite and restores on startup — pane titles, working directories, environment variables, and startup commands.
 
-- [Rust](https://rustup.rs) (stable toolchain)
-- [Node.js](https://nodejs.org) 20+
-- [pnpm](https://pnpm.io) 9+
-- Platform-specific dependencies per the [Tauri prerequisites guide](https://tauri.app/start/prerequisites/)
+<p align="center">
+  <img src="docs/demo/workspace.png" alt="Multi-workspace tabs" width="720" />
+</p>
 
-### Optional: AI Agent CLIs
+### Built-in code viewer
+CodeMirror 6 editor with syntax highlighting for 20+ languages, search, line numbers, and save support. Open files from the file browser or drag them onto terminal panes.
 
-Task runner and swarm features depend on external CLI tools being installed and available on your `PATH`:
+### Task board
+Kanban board scoped per project. Create tasks, assign them to agents, and launch CLI commands directly from the board.
 
-| Agent | Install |
-|-------|---------|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm install -g @anthropic-ai/gemini-cli` (or see repo) |
-| [OpenAI Codex](https://github.com/openai/codex) | `npm install -g @openai/codex` |
+<p align="center">
+  <img src="docs/demo/kanban.png" alt="Kanban task board" width="720" />
+</p>
 
-Any CLI tool that reads from stdin/stdout works — configure custom agent presets in the Swarm Panel.
+### 11 built-in themes
+Dark-first design with Subnautica as the default. Switch themes live from the settings panel with color previews.
+
+<p align="center">
+  <img src="docs/demo/theme_switcher.gif" alt="Theme switcher with live preview" width="720" />
+</p>
+
+### And more
+- **Broadcast mode** — type once, send to multiple terminals. Per-pane target selection.
+- **Command palette** — fuzzy search for all actions (Ctrl+Shift+P)
+- **File browser** — tree view with git status indicators and drag-to-terminal
+- **Agent auto-launch** — configure startup commands per pane, auto-run on workspace open
+- **Swarm panel** — multi-agent orchestration with role-based presets
+- **Diff viewer** — review agent-generated code changes
+- **Keyboard-driven** — fully customizable keybindings, directional pane navigation (Ctrl+/)
+- **Custom pane titles** — double-click to rename, persisted across restarts
+- **Inline images** — Sixel graphics protocol support via xterm.js
 
 ## Quick Start
 
+### Prerequisites
+
+- [Rust](https://rustup.rs) (stable)
+- [Node.js](https://nodejs.org) 20+
+- [pnpm](https://pnpm.io) 9+
+- Platform dependencies per the [Tauri prerequisites guide](https://tauri.app/start/prerequisites/)
+
+### Run
+
 ```bash
-# Clone the repo
 git clone https://github.com/ayushh2k/turbine.git
 cd turbine/turbine-app
-
-# Install frontend dependencies
 pnpm install
-
-# Run in development mode (compiles Rust + starts Vite dev server)
 pnpm tauri dev
-
-# Build for production
-pnpm tauri build
 ```
 
-The first run is slow due to Rust compilation. Subsequent runs use incremental builds.
+First run is slow (Rust compilation). Subsequent runs use incremental builds.
 
-**Always use `pnpm`, never `npm`.**
+```bash
+pnpm tauri build    # Production build
+```
+
+> Always use `pnpm`, not `npm`.
+
+### Optional: AI Agent CLIs
+
+The task runner and swarm features launch external CLI tools. Install whichever agents you use:
+
+| Agent | Install |
+|-------|---------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `npm i -g @anthropic-ai/claude-code` |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm i -g @google/gemini-cli` |
+| [OpenAI Codex](https://github.com/openai/codex) | `npm i -g @openai/codex` |
+
+Any CLI tool that reads stdin/stdout works. Configure custom agent presets in the Swarm Panel.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Desktop framework | [Tauri v2](https://tauri.app) |
-| Backend | Rust (PTY management via `portable-pty`, SQLite via `rusqlite`, file I/O via `notify`) |
+| Backend | Rust — `portable-pty`, `rusqlite`, `notify` |
 | Frontend | [React 19](https://react.dev) + [Zustand](https://zustand.docs.pmnd.rs) |
-| Terminal emulator | [xterm.js](https://xtermjs.org) with WebGL renderer |
+| Terminal | [xterm.js](https://xtermjs.org) (WebGL) |
 | Code editor | [CodeMirror 6](https://codemirror.net) |
-| Database | SQLite (embedded, no external server) |
+| Database | SQLite (embedded) |
 
 ## Architecture
 
@@ -105,11 +138,8 @@ The first run is slow due to Rust compilation. Subsequent runs use incremental b
 ┌─────────────────────────────────────────────────┐
 │                  Tauri Window                    │
 │  ┌───────────────────────────────────────────┐  │
-│  │  React Frontend                           │  │
-│  │  ┌─────────┐ ┌──────────┐ ┌───────────┐  │  │
-│  │  │ TabBar  │ │ Pane     │ │ Command   │  │  │
-│  │  │         │ │ Container│ │ Palette   │  │  │
-│  │  └─────────┘ └──────────┘ └───────────┘  │  │
+│  │  React 19 Frontend                        │  │
+│  │  TabBar · PaneContainer · CommandPalette  │  │
 │  │  Zustand stores · Layout engine · Themes  │  │
 │  └──────────────────┬────────────────────────┘  │
 │                     │ IPC (invoke / listen)      │
@@ -120,31 +150,20 @@ The first run is slow due to Rust compilation. Subsequent runs use incremental b
 └─────────────────────────────────────────────────┘
 ```
 
-**Key entry points:**
+Key entry points: `src/App.tsx`, `src/state/workspaceStore.ts`, `src/state/layoutEngine.ts`, `src-tauri/src/lib.rs`, `src-tauri/src/pty_manager.rs`
 
-- `src/App.tsx` — app composition, workspace lifecycle, layout actions
-- `src/state/workspaceStore.ts` — persisted workspace and pane state
-- `src/state/layoutEngine.ts` — pure binary-tree layout logic
-- `src/components/TerminalPane.tsx` — xterm.js terminal integration
-- `src-tauri/src/lib.rs` — Tauri setup and command registration
-- `src-tauri/src/pty_manager.rs` — native PTY management
-- `src-tauri/src/commands.rs` — backend command surface and persistence
-
-For a guided architecture overview, see:
-
-- [`docs/codebase-map.md`](docs/codebase-map.md)
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- [`.kiro/specs/turbine/design.md`](../.kiro/specs/turbine/design.md)
+See [`docs/codebase-map.md`](docs/codebase-map.md) for a guided walkthrough.
 
 ## Contributing
 
-Contributions are welcome! Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
+Contributions welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes
-4. Run checks: `cargo check`, `npx tsc --noEmit`, `pnpm vitest --run`
-5. Open a pull request
+```bash
+# Verify before submitting
+cargo check --manifest-path src-tauri/Cargo.toml
+npx tsc --noEmit
+pnpm vitest --run
+```
 
 ## License
 
