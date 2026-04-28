@@ -6,6 +6,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useSettingsStore } from '../../state/settingsStore';
@@ -251,7 +252,7 @@ function TerminalPaneInner({
 
       // Web links addon — make URLs in terminal output clickable
       const webLinksAddon = new WebLinksAddon((_event, uri) => {
-        window.open(uri, '_blank');
+        openUrl(uri).catch(() => {});
       });
       terminal.loadAddon(webLinksAddon);
 
