@@ -1,0 +1,121 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0 var(--space-5);
+  background: var(--tab-bar-bg);
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-fg-muted);
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
+.status-bar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.status-bar__spacer {
+  flex: 1;
+}
+
+.status-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.status-bar__item--strong {
+  color: var(--color-fg);
+  font-weight: 500;
+}
+
+.status-bar__item--muted {
+  color: var(--color-fg-muted);
+}
+
+.status-bar__item--button {
+  background: transparent;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  letter-spacing: inherit;
+  transition:
+    color var(--duration-instant) var(--ease-out),
+    background var(--duration-instant) var(--ease-out);
+}
+
+.status-bar__item--button:hover {
+  color: var(--color-fg);
+  background: var(--color-bg-elevated);
+}
+
+.status-bar__item--broadcast {
+  color: var(--broadcast-color);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  padding: 1px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--broadcast-color) 14%, transparent);
+}
+
+.status-bar__separator {
+  color: var(--color-fg-muted);
+  opacity: 0.45;
+}
+
+.status-bar__workspace-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 8px currentColor;
+}
+
+.status-bar__broadcast-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--broadcast-color);
+  box-shadow: 0 0 8px var(--broadcast-color);
+  animation: status-bar-pulse 1.6s ease-in-out infinite;
+}
+
+.status-bar__running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+  animation: status-bar-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes status-bar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-bar__kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+  letter-spacing: 0;
+}
+
+.status-bar--empty {
+  justify-content: space-between;
+}

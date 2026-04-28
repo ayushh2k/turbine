@@ -246,47 +246,83 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
+  padding: var(--space-10) var(--space-8);
   text-align: center;
-  gap: 8px;
+  gap: var(--space-5);
   flex: 1;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 30%, color-mix(in srgb, var(--color-accent) 4%, transparent), transparent 70%);
 }
 
 .swarm-empty__icon {
-  font-size: 32px;
-  opacity: 0.4;
-  margin-bottom: 4px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  color: var(--color-accent);
+  font-size: 28px;
+  opacity: 0.85;
+  margin-bottom: var(--space-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: swarm-empty-icon-in var(--duration-slow) var(--ease-overshoot);
+}
+
+@keyframes swarm-empty-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 0.85;
+    transform: scale(1);
+  }
 }
 
 .swarm-empty__title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-fg);
+  letter-spacing: 0.005em;
 }
 
 .swarm-empty__desc {
   font-size: 12px;
   color: var(--color-fg-muted);
-  line-height: 1.5;
-  max-width: 280px;
+  line-height: 1.55;
+  max-width: 320px;
 }
 
 .swarm-empty__action {
-  margin-top: 8px;
+  margin-top: var(--space-4);
   background: var(--color-accent);
   color: var(--color-bg);
   border: none;
-  border-radius: 8px;
-  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-7);
   font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    filter var(--duration-fast) var(--ease-out);
   font-family: inherit;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 .swarm-empty__action:hover {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-accent) 42%, transparent);
+}
+
+.swarm-empty__action:active {
+  transform: translateY(0);
 }
 
 /* ── New Run ── */

@@ -1,27 +1,44 @@
 .ctx-menu {
   position: fixed;
   z-index: 1000;
-  min-width: 160px;
-  background: var(--ctx-menu-bg);
-  border: 1px solid var(--ctx-menu-border);
-  border-radius: 6px;
-  padding: 4px 0;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  background: color-mix(in srgb, var(--ctx-menu-bg) 92%, transparent);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) 0;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  animation: ctx-menu-in var(--duration-fast) var(--ease-out);
+  transform-origin: top left;
+}
+
+@keyframes ctx-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .ctx-menu__item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   width: 100%;
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-5);
   border: none;
   background: transparent;
   color: var(--ctx-menu-fg);
   font-size: 12px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.1s;
+  transition:
+    background var(--duration-instant) var(--ease-out),
+    color var(--duration-instant) var(--ease-out);
 }
 
 .ctx-menu__item:hover {
@@ -33,31 +50,36 @@
 }
 
 .ctx-menu__item--danger:hover {
-  background: rgba(255, 92, 92, 0.12);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }
 
 /* Color picker */
 .color-picker {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px;
-  max-width: 160px;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  max-width: 180px;
 }
 
 .color-picker__swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
   border: 2px solid transparent;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.1s;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-overshoot),
+    box-shadow var(--duration-fast) var(--ease-out);
   padding: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
 .color-picker__swatch:hover {
   border-color: var(--color-fg);
-  transform: scale(1.15);
+  transform: scale(1.18);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 12px currentColor;
 }
 
 /* Rename overlay */
@@ -71,18 +93,21 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 80px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 1002;
+  animation: command-palette-backdrop-in var(--duration-base) var(--ease-out);
 }
 
 .rename-overlay__input {
-  width: 280px;
-  padding: 8px 12px;
+  width: 320px;
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-accent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--ctx-menu-bg);
   color: var(--ctx-menu-fg);
   font-size: 14px;
   outline: none;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }

@@ -1,12 +1,12 @@
 .activity-bar {
   width: 44px;
   background: var(--tab-bar-bg, #081422);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 8px 0;
+  padding: var(--space-4) 0;
 }
 
 .activity-bar__top,
@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 /* Wrapper for button + tooltip */
@@ -30,70 +30,101 @@
   border: none;
   background: transparent;
   color: var(--color-fg-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.12s, background 0.12s;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
   position: relative;
   flex-shrink: 0;
 }
 
 .activity-bar__btn:hover {
   color: var(--color-fg);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--color-bg-elevated);
+  transform: scale(1.05);
+}
+
+.activity-bar__btn:active {
+  transform: scale(0.96);
 }
 
 .activity-bar__btn--active {
   color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.activity-bar__btn--active:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 
 .activity-bar__btn--active::before {
   content: '';
   position: absolute;
-  left: 0;
+  left: -4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 2px;
-  height: 20px;
+  width: 3px;
+  height: 22px;
   background: var(--color-accent);
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 60%, transparent);
+  animation: activity-bar-indicator-in var(--duration-base) var(--ease-overshoot);
+}
+
+@keyframes activity-bar-indicator-in {
+  from {
+    opacity: 0;
+    transform: translate(-4px, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
 }
 
 .activity-bar__btn--broadcast {
   color: var(--broadcast-color);
-  background: rgba(240, 192, 64, 0.1);
+  background: color-mix(in srgb, var(--broadcast-color) 12%, transparent);
 }
 
 .activity-bar__btn--broadcast:hover {
   color: var(--broadcast-color);
-  background: rgba(240, 192, 64, 0.18);
+  background: color-mix(in srgb, var(--broadcast-color) 22%, transparent);
 }
 
 /* Tooltip */
 .activity-bar__tooltip {
   position: absolute;
-  left: calc(100% + 10px);
+  left: calc(100% + 12px);
   top: 50%;
-  transform: translateY(-50%);
-  background: var(--color-bg, #0b1929);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 6px 10px;
+  transform: translate(-4px, -50%);
+  background: var(--ctx-menu-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
   z-index: 200;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  gap: var(--space-1);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
 }
 
 .activity-bar__item:hover .activity-bar__tooltip {
   opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 250ms;
 }
 
 .activity-bar__tooltip-label {

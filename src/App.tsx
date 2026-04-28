@@ -18,6 +18,7 @@ import { CommandPalette, type PaletteAction } from './components/overlays/Comman
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { ActivityBar, type SidePanelId } from './components/layout/ActivityBar';
 import { SidePanel } from './components/layout/SidePanel';
+import { StatusBar } from './components/layout/StatusBar';
 import type { FileTreeEntry, PaneTemplate, PaneConfig } from './types';
 import type { RunTaskRequest } from './components/viewers/TaskBoard';
 import { deriveWorkspaceRoot } from './utils/workspaceRoots';
@@ -121,8 +122,8 @@ function App() {
     broadcastPaneIds,
   );
   const workspaceRoot = useMemo(
-    () => deriveWorkspaceRoot(activeWorkspace, focusedPaneId),
-    [activeWorkspace, focusedPaneId],
+    () => deriveWorkspaceRoot(activeWorkspace),
+    [activeWorkspace],
   );
   const activeFilePath =
     activeWorkspace?.panes.find(
@@ -224,10 +225,19 @@ function App() {
   const splitAndAddPanes = useCallback(
     (splitFn: (layout: import('./types').LayoutNode, paneId: string) => import('./types').LayoutNode, paneId: string) => {
       if (!activeWorkspace || !activeWorkspaceId) return;
+      const sourcePane = activeWorkspace.panes.find((p) => p.id === paneId);
+      const sourceCwd =
+        sourcePane?.type === 'terminal' && sourcePane.workingDirectory && sourcePane.workingDirectory !== '.'
+          ? sourcePane.workingDirectory
+          : workspaceRoot ?? '.';
       const newLayout = splitFn(activeWorkspace.layout, paneId);
       const existingIds = new Set(activeWorkspace.panes.map((p) => p.id));
       const newLeafIds = findLeafIds(newLayout).filter((id) => !existingIds.has(id));
-      const newPanes = newLeafIds.map((id) => ({ ...createDefaultPane(activeWorkspaceId), id }));
+      const newPanes = newLeafIds.map((id) => ({
+        ...createDefaultPane(activeWorkspaceId),
+        id,
+        workingDirectory: sourceCwd,
+      }));
       useWorkspaceStore.setState((s) => ({
         workspaces: s.workspaces.map((w) =>
           w.id === activeWorkspaceId
@@ -240,7 +250,7 @@ function App() {
         setFocusedPaneId(newLeafIds[0]);
       }
     },
-    [activeWorkspace, activeWorkspaceId],
+    [activeWorkspace, activeWorkspaceId, workspaceRoot],
   );
 
   const handleSplitH = useCallback(
@@ -891,6 +901,13 @@ function App() {
         {broadcastMode && (
           <BroadcastOverlay focusedPaneId={focusedPaneId} />
         )}
+
+        <StatusBar
+          focusedPaneId={focusedPaneId}
+          broadcastMode={broadcastMode}
+          onOpenPalette={() => setShowPalette(true)}
+          onOpenShortcuts={() => setShowShortcuts(true)}
+        />
 
         {contextMenuElement}
         <SearchBar />
