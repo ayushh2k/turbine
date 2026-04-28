@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { FileTreeEntry } from '../types';
+import type { FileTreeEntry } from '../../types';
 import './FileBrowser.css';
 
 /** File icon color + letter, mimicking VS Code's Seti icon theme. */

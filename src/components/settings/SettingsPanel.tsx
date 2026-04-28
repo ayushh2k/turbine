@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSettingsStore } from '../state/settingsStore';
-import { keybindingManager, DEFAULT_BINDINGS } from '../state/keybindingManager';
+import { useSettingsStore } from '../../state/settingsStore';
+import { keybindingManager, DEFAULT_BINDINGS } from '../../state/keybindingManager';
 import {
   getAllThemes,
   applyTheme,
   loadCustomThemeJson,
   persistCustomTheme,
-} from '../themes/themeEngine';
-import type { Action } from '../state/keybindingManager';
+} from '../../themes/themeEngine';
+import type { Action } from '../../state/keybindingManager';
 import './SettingsPanel.css';
 
 type Section = 'general' | 'terminal' | 'keybindings';

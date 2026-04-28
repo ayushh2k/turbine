@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useWorkspaceStore } from '../state/workspaceStore';
+import { useWorkspaceStore } from '../../state/workspaceStore';
 import { ContextMenu, ColorPicker, type ContextMenuItem } from './ContextMenu';
 
 interface MenuState {

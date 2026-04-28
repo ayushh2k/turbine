@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useNotificationStore, type AppNotification } from '../state/notificationStore';
+import { useNotificationStore, type AppNotification } from '../../state/notificationStore';
 import './NotificationCenter.css';
 
 const AUTO_DISMISS_MS = 5000;

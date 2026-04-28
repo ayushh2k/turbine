@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SwarmRun, SwarmAgent, MailboxMessage } from '../types';
+import type { SwarmRun, SwarmAgent, MailboxMessage } from '../../types';
 import './SwarmHistory.css';
 
 interface SwarmHistoryProps {

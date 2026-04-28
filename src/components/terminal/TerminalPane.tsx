@@ -8,17 +8,17 @@ import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core';
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { useSettingsStore } from '../state/settingsStore';
-import { getXtermTheme } from '../themes/themeEngine';
-import { useCommandBlocks } from '../hooks/useCommandBlocks';
+import { useSettingsStore } from '../../state/settingsStore';
+import { getXtermTheme } from '../../themes/themeEngine';
+import { useCommandBlocks } from '../../hooks/useCommandBlocks';
 import { TerminalSearch } from './TerminalSearch';
 import { CommandBlocksPanel } from './CommandBlocksPanel';
-import { MediaOverlay, detectMediaUrl, type MediaItem } from './MediaOverlay';
+import { MediaOverlay, detectMediaUrl, type MediaItem } from '../viewers/MediaOverlay';
 import { TerminalContextMenu } from './TerminalContextMenu';
-import { usePtyStatusStore } from '../hooks/usePtyStatus';
-import { useWorkspaceStore } from '../state/workspaceStore';
-import { useSearchStore } from '../state/searchStore';
-import { spawnPaneSession } from '../state/terminalSession';
+import { usePtyStatusStore } from '../../hooks/usePtyStatus';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import { useSearchStore } from '../../state/searchStore';
+import { spawnPaneSession } from '../../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
@@ -194,6 +194,7 @@ function TerminalPaneInner({
         selectionBackground: '#1a355080',
       },
       allowProposedApi: true,
+      macOptionIsMeta: true,
     });
 
     const fitAddon = new FitAddon();

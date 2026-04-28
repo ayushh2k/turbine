@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useCallback, useState, useRef } from 'react';
-import { useSwarmStore } from '../state/swarmStore';
-import { useAgentStore } from '../state/agentStore';
-import type { SwarmRun, SwarmAgent, MailboxMessage, AgentPreset, WorkflowStep } from '../types';
-import { DEFAULT_AGENT_ROLES } from '../types';
+import { useSwarmStore } from '../../state/swarmStore';
+import { useAgentStore } from '../../state/agentStore';
+import type { SwarmRun, SwarmAgent, MailboxMessage, AgentPreset, WorkflowStep } from '../../types';
+import { DEFAULT_AGENT_ROLES } from '../../types';
 import { SwarmHistory } from './SwarmHistory';
 import './SwarmPanel.css';
 

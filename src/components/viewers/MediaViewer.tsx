@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { getMediaFormatLabel, getMediaKind } from '../utils/mediaFiles';
+import { getMediaFormatLabel, getMediaKind } from '../../utils/mediaFiles';
 import './MediaViewer.css';
 
 interface MediaViewerProps {

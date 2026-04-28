@@ -1,4 +1,4 @@
-import type { CommandBlock } from '../types';
+import type { CommandBlock } from '../../types';
 import './CommandBlocksPanel.css';
 
 interface CommandBlocksPanelProps {

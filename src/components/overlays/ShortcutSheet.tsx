@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { keybindingManager, DEFAULT_BINDINGS } from '../state/keybindingManager';
-import type { Action } from '../state/keybindingManager';
+import { keybindingManager, DEFAULT_BINDINGS } from '../../state/keybindingManager';
+import type { Action } from '../../state/keybindingManager';
 import './ShortcutSheet.css';
 
 interface ShortcutSheetProps {

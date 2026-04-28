@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { PaneTemplate } from '../types';
+import type { PaneTemplate } from '../../types';
 import './TemplatePicker.css';
 
 const TEMPLATES: PaneTemplate[] = [1, 2, 4, 6, 8, 10, 12, 14, 16];

@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { FileBrowser } from './FileBrowser';
-import { TaskBoard, type RunTaskRequest } from './TaskBoard';
-import { SwarmPanel } from './SwarmPanel';
-import type { FileTreeEntry } from '../types';
+import { FileBrowser } from '../viewers/FileBrowser';
+import { TaskBoard, type RunTaskRequest } from '../viewers/TaskBoard';
+import { SwarmPanel } from '../swarm/SwarmPanel';
+import type { FileTreeEntry } from '../../types';
 import type { SidePanelId } from './ActivityBar';
 import './SidePanel.css';
 

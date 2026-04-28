@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useWorkspaceStore } from '../state/workspaceStore';
-import { usePtyStatusStore } from '../hooks/usePtyStatus';
-import { openWorkspaceFolder } from '../utils/openWorkspaceFolder';
-import { TemplatePicker } from './TemplatePicker';
-import type { PaneTemplate } from '../types';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import { usePtyStatusStore } from '../../hooks/usePtyStatus';
+import { openWorkspaceFolder } from '../../utils/openWorkspaceFolder';
+import { TemplatePicker } from '../overlays/TemplatePicker';
+import type { PaneTemplate } from '../../types';
 import './TabBar.css';
 
 interface TabBarProps {

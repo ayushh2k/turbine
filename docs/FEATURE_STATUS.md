@@ -1,6 +1,6 @@
 # Turbine — Feature Status Audit
 
-Comparison of the 12 original requirements (`.kiro/specs/turbine/requirements.md`) against the current implementation.
+Comparison of the 12 original requirements against the current implementation.
 
 ## Requirements Status
 
@@ -116,8 +116,8 @@ Comparison of the 12 original requirements (`.kiro/specs/turbine/requirements.md
 - ✅ `check_for_updates` / `install_update` Rust commands
 - ✅ `UpdateNotification` component with update/dismiss/retry UI
 - ✅ User can disable auto-update checks in settings
-- ❌ Not release-ready: updater pubkey is empty, updater set to `active: false` until signing is configured
-- ✅ Frontend now guards against unconfigured updater (skips check silently)
+- ✅ Updater signing pubkey is configured in `src-tauri/tauri.conf.json`
+- ⚠️ Release builds still require `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` GitHub secrets
 
 ## Bonus Features (Beyond Original Spec)
 

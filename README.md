@@ -79,7 +79,7 @@ Dark-first design with Subnautica as the default. Switch themes live from the se
 - **Agent auto-launch** — configure startup commands per pane, auto-run on workspace open
 - **Swarm panel** — multi-agent orchestration with role-based presets
 - **Diff viewer** — review agent-generated code changes
-- **Keyboard-driven** — fully customizable keybindings, directional pane navigation (Ctrl+/)
+- **Keyboard-driven** — fully customizable keybindings, directional pane navigation (Ctrl+Arrow keys), and a shortcut sheet (Ctrl+/)
 - **Custom pane titles** — double-click to rename, persisted across restarts
 - **Inline images** — Sixel graphics protocol support via xterm.js
 
@@ -137,8 +137,8 @@ Contributions welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
 ```bash
 # Verify before submitting
 cargo check --manifest-path src-tauri/Cargo.toml
-npx tsc --noEmit
-pnpm vitest --run
+pnpm exec tsc --noEmit
+pnpm exec vitest run
 ```
 
 ## License

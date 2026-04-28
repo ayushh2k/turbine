@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useTaskStore } from '../state/taskStore';
-import { useWorkspaceStore } from '../state/workspaceStore';
-import type { Task, TaskStatus } from '../types';
-import { DEFAULT_BOARD_COLUMNS } from '../types';
+import { useTaskStore } from '../../state/taskStore';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import type { Task, TaskStatus } from '../../types';
+import { DEFAULT_BOARD_COLUMNS } from '../../types';
 import './TaskBoard.css';
 
 export interface AgentCli {

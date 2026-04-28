@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useSettingsStore } from '../state/settingsStore';
-import type { UpdateInfo } from '../types';
+import { useSettingsStore } from '../../state/settingsStore';
+import type { UpdateInfo } from '../../types';
 import './UpdateNotification.css';
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'ready' | 'error';

@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { LayoutNode, PaneConfig } from '../types';
-import type { RunTaskRequest } from './TaskBoard';
-import { HomeScreen } from './HomeScreen';
-import { TerminalPane } from './TerminalPane';
-import { CodeViewer } from './CodeViewer';
-import { MediaViewer } from './MediaViewer';
-import { TaskBoard } from './TaskBoard';
-import { DiffViewer } from './DiffViewer';
-import { SwarmPanel } from './SwarmPanel';
+import type { LayoutNode, PaneConfig } from '../../types';
+import type { RunTaskRequest } from '../viewers/TaskBoard';
+import { HomeScreen } from '../viewers/HomeScreen';
+import { TerminalPane } from '../terminal/TerminalPane';
+import { CodeViewer } from '../viewers/CodeViewer';
+import { MediaViewer } from '../viewers/MediaViewer';
+import { TaskBoard } from '../viewers/TaskBoard';
+import { DiffViewer } from '../viewers/DiffViewer';
+import { SwarmPanel } from '../swarm/SwarmPanel';
 import { PaneToolbar } from './PaneToolbar';
-import { CloseConfirmDialog } from './CloseConfirmDialog';
-import { usePaneStatus } from '../hooks/usePtyStatus';
-import { usePtyStatusStore } from '../hooks/usePtyStatus';
-import { useWorkspaceStore } from '../state/workspaceStore';
+import { CloseConfirmDialog } from '../overlays/CloseConfirmDialog';
+import { usePaneStatus } from '../../hooks/usePtyStatus';
+import { usePtyStatusStore } from '../../hooks/usePtyStatus';
+import { useWorkspaceStore } from '../../state/workspaceStore';
 import './PaneContainer.css';
 
 function getPaneTypeLabel(pane: PaneConfig): string {

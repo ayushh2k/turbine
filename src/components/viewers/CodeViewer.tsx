@@ -7,8 +7,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { invoke } from '@tauri-apps/api/core';
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { detectLanguage, getLanguageExtension } from '../utils/languageDetect';
-import type { FileContent } from '../types';
+import { detectLanguage, getLanguageExtension } from '../../utils/languageDetect';
+import type { FileContent } from '../../types';
 import './CodeViewer.css';
 
 interface CodeViewerProps {

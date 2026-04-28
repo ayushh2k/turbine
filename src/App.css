@@ -36,11 +36,14 @@
 .app__workspace-panel {
   position: absolute;
   inset: 0;
-  display: none;
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .app__workspace-panel--active {
-  display: flex;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .app__loading {

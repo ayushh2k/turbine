@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useWorkspaceStore } from '../state/workspaceStore';
+import { useWorkspaceStore } from '../../state/workspaceStore';
 import './BroadcastOverlay.css';
 
 interface BroadcastOverlayProps {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useSearchStore } from '../state/searchStore';
+import { useSearchStore } from '../../state/searchStore';
 import './SearchBar.css';
 
 export function SearchBar() {

@@ -20,7 +20,7 @@ Describe how you tested this change. Include:
 
 ## Checklist
 - [ ] `cargo test --manifest-path src-tauri/Cargo.toml` passes
-- [ ] `npx tsc --noEmit` passes (no TypeScript errors)
+- [ ] `pnpm exec tsc --noEmit` passes (no TypeScript errors)
 - [ ] `pnpm exec vitest run` passes
 - [ ] Code follows existing patterns (see `AGENTS.md`)
 - [ ] No unnecessary `console.log` / debug output left in

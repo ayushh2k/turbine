@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { useWorkspaceStore } from '../state/workspaceStore';
-import { openWorkspaceFolder } from '../utils/openWorkspaceFolder';
-import type { PaneConfig } from '../types';
+import { useWorkspaceStore } from '../../state/workspaceStore';
+import { openWorkspaceFolder } from '../../utils/openWorkspaceFolder';
+import type { PaneConfig } from '../../types';
 import './HomeScreen.css';
 
 interface HomeScreenProps {

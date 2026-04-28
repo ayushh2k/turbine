@@ -195,18 +195,18 @@ The most important end-to-end flows are:
 
 ## Where to Start by Task
 
-- New pane type: `src/types/index.ts`, `src/components/PaneContainer.tsx`, and
+- New pane type: `src/types/index.ts`, `src/components/layout/PaneContainer.tsx`, and
   whichever component renders the pane
-- Terminal behavior: `src/components/TerminalPane.tsx`,
+- Terminal behavior: `src/components/terminal/TerminalPane.tsx`,
   `src/state/terminalSession.ts`, `src-tauri/src/pty_manager.rs`
 - Workspace persistence: `src/state/workspaceStore.ts`,
   `src-tauri/src/commands.rs`, `src-tauri/src/db.rs`
-- File browser or editor changes: `src/components/FileBrowser.tsx`,
-  `src/components/CodeViewer.tsx`, `src-tauri/src/file_ops.rs`
-- Swarm features: `src/components/SwarmPanel.tsx`,
+- File browser or editor changes: `src/components/viewers/FileBrowser.tsx`,
+  `src/components/viewers/CodeViewer.tsx`, `src-tauri/src/file_ops.rs`
+- Swarm features: `src/components/swarm/SwarmPanel.tsx`,
   `src/state/swarmStore.ts`, `src-tauri/src/swarm_engine.rs`
 - Settings and themes: `src/state/settingsStore.ts`,
-  `src/themes/themeEngine.ts`, `src/components/SettingsPanel.tsx`
+  `src/themes/themeEngine.ts`, `src/components/settings/SettingsPanel.tsx`
 
 ## Current Readability Notes
 
@@ -214,8 +214,8 @@ The structure is already good enough for open source, but these files carry a
 lot of responsibility and are worth treating carefully:
 
 - `src/App.tsx`
-- `src/components/SwarmPanel.tsx`
-- `src/components/TerminalPane.tsx`
+- `src/components/swarm/SwarmPanel.tsx`
+- `src/components/terminal/TerminalPane.tsx`
 - `src-tauri/src/commands.rs`
 - `src-tauri/src/db.rs`
 

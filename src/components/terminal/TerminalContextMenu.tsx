@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { ContextMenu, type ContextMenuItem } from '../overlays/ContextMenu';
 
 interface TerminalContextMenuProps {
   x: number;
