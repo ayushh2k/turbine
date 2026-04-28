@@ -162,6 +162,8 @@
 }
 
 .file-browser__label {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -218,6 +220,24 @@
 
 .file-browser__row--git-dir-modified .file-browser__label {
   color: var(--color-warning);
+}
+
+/* VS Code-style right-aligned git status letter (M / U / D / R) */
+.file-browser__git-badge {
+  margin-left: auto;
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.file-browser__row--git-deleted .file-browser__git-badge {
+  text-decoration: none;
+  opacity: 1;
 }
 
 .file-browser__empty {

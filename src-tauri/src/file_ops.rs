@@ -237,44 +237,115 @@ fn should_skip_path(name: &str) -> bool {
 pub fn git_status(path: String) -> Result<std::collections::HashMap<String, String>, String> {
     use std::process::Command;
 
-    let output = Command::new("git")
-        .args(["status", "--porcelain=v1", "-uall"])
-        .current_dir(&path)
-        .output()
-        .map_err(|e| format!("Failed to run git: {e}"))?;
+    let workspace_root = PathBuf::from(&path);
+    let git_roots = discover_git_roots(&workspace_root);
 
-    if !output.status.success() {
+    if git_roots.is_empty() {
         return Err("Not a git repository or git not available".into());
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
     let mut statuses = std::collections::HashMap::new();
 
-    for line in stdout.lines() {
-        if line.len() < 4 {
+    for git_root in git_roots {
+        let output = match Command::new("git")
+            .args(["status", "--porcelain=v1", "-uall"])
+            .current_dir(&git_root)
+            .output()
+        {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
+
+        if !output.status.success() {
             continue;
         }
-        let xy = &line[..2];
-        let file_path = &line[3..];
-        // Handle renames: "R  old -> new"
-        let file_path = if let Some(pos) = file_path.find(" -> ") {
-            &file_path[pos + 4..]
-        } else {
-            file_path
-        };
 
-        let status = match xy.trim() {
-            "??" => "new",
-            s if s.contains('D') => "deleted",
-            s if s.contains('R') => "renamed",
-            s if s.contains('M') || s.contains('A') || s.contains('U') => "modified",
-            _ => continue,
-        };
+        // Path prefix to map repo-relative paths back to workspace-relative paths.
+        let prefix = git_root
+            .strip_prefix(&workspace_root)
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
 
-        statuses.insert(file_path.to_string(), status.to_string());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        for line in stdout.lines() {
+            if line.len() < 4 {
+                continue;
+            }
+            let xy = &line[..2];
+            let file_path = &line[3..];
+            // Handle renames: "R  old -> new"
+            let file_path = if let Some(pos) = file_path.find(" -> ") {
+                &file_path[pos + 4..]
+            } else {
+                file_path
+            };
+
+            let status = match xy.trim() {
+                "??" => "new",
+                s if s.contains('D') => "deleted",
+                s if s.contains('R') => "renamed",
+                s if s.contains('M') || s.contains('A') || s.contains('U') => "modified",
+                _ => continue,
+            };
+
+            let key = if prefix.is_empty() {
+                file_path.to_string()
+            } else {
+                format!("{}/{}", prefix, file_path)
+            };
+
+            statuses.insert(key, status.to_string());
+        }
     }
 
     Ok(statuses)
+}
+
+/// Find git repos relevant to a workspace:
+/// - If `root` itself is a git working tree, use only that.
+/// - Otherwise recurse up to `MAX_GIT_SCAN_DEPTH` levels and collect every directory
+///   that contains a `.git` entry. Doesn't descend into a repo once found.
+fn discover_git_roots(root: &Path) -> Vec<PathBuf> {
+    const MAX_GIT_SCAN_DEPTH: usize = 4;
+
+    if root.join(".git").exists() {
+        return vec![root.to_path_buf()];
+    }
+
+    let mut roots = Vec::new();
+    walk_for_git_roots(root, 0, MAX_GIT_SCAN_DEPTH, &mut roots);
+    roots
+}
+
+fn walk_for_git_roots(dir: &Path, depth: usize, max_depth: usize, out: &mut Vec<PathBuf>) {
+    if depth >= max_depth {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if should_skip_path(&name_str) {
+            continue;
+        }
+        if p.join(".git").exists() {
+            out.push(p);
+            // Don't descend into a repo — its own ignored paths are git's problem.
+            continue;
+        }
+        walk_for_git_roots(&p, depth + 1, max_depth, out);
+    }
 }
 
 // ---------------------------------------------------------------------------

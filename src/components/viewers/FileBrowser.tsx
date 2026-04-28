@@ -395,6 +395,16 @@ function gitStatusClass(status: GitStatus | undefined): string {
   return `file-browser__row--git-${status}`;
 }
 
+function gitStatusLetter(status: GitStatus | undefined): string | null {
+  switch (status) {
+    case 'new': return 'U';
+    case 'modified': return 'M';
+    case 'deleted': return 'D';
+    case 'renamed': return 'R';
+    default: return null;
+  }
+}
+
 function gitDirStatusClass(status: DirGitStatus | undefined): string {
   if (!status) return '';
   return `file-browser__row--git-dir-${status}`;
@@ -416,6 +426,7 @@ function TreeNode({
   if (!node.isDir) {
     const gs = gitStatuses.get(node.relativePath);
     const iconDef = getFileIconDef(node.name);
+    const gitLetter = gitStatusLetter(gs);
     return (
       <button
         type="button"
@@ -436,6 +447,11 @@ function TreeNode({
       >
         <span className="file-browser__file-icon" style={{ color: iconDef.color }}>{iconDef.letter}</span>
         <span className="file-browser__label">{node.name}</span>
+        {gitLetter && (
+          <span className="file-browser__git-badge" aria-label={`Git status: ${gs}`}>
+            {gitLetter}
+          </span>
+        )}
       </button>
     );
   }
