@@ -66,6 +66,11 @@ pub struct PtyExitPayload {
     pub exit_code: Option<i32>,
 }
 
+#[derive(Clone, Serialize)]
+struct PtyAttentionPayload {
+    pane_id: String,
+}
+
 /// Try to retrieve the exit code from a child process via the managed PtyManager state.
 fn harvest_exit_code(handle: &AppHandle, pane_id: &str) -> Option<i32> {
     let pty_mgr = handle.try_state::<PtyManager>()?;
@@ -259,6 +264,9 @@ pub fn spawn_pty_internal(
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         let mut seq: u64 = 0;
+        // Throttle attention events: at most one per BEL_THROTTLE per pane.
+        const BEL_THROTTLE: std::time::Duration = std::time::Duration::from_secs(3);
+        let mut last_bel: Option<std::time::Instant> = None;
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {
@@ -276,12 +284,29 @@ pub fn spawn_pty_internal(
                 }
                 Ok(n) => {
                     seq += 1;
+                    let chunk = &buf[..n];
+                    if chunk.contains(&0x07) {
+                        let now = std::time::Instant::now();
+                        let should_emit = last_bel
+                            .map(|t| now.duration_since(t) >= BEL_THROTTLE)
+                            .unwrap_or(true);
+                        if should_emit {
+                            last_bel = Some(now);
+                            let _ = handle.emit_to(
+                                "main",
+                                "pty_attention",
+                                PtyAttentionPayload {
+                                    pane_id: reader_pane_id.clone(),
+                                },
+                            );
+                        }
+                    }
                     let _ = handle.emit_to(
                         "main",
                         "pty_output",
                         PtyOutputPayload {
                             pane_id: reader_pane_id.clone(),
-                            data: buf[..n].to_vec(),
+                            data: chunk.to_vec(),
                             seq,
                         },
                     );

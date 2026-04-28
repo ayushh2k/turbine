@@ -8,6 +8,7 @@ import { applyTheme, getAllThemes } from './themes/themeEngine';
 import { findLeafIds, movePane, resizeAtPath, createCodeAndConsolePreset, createWebDevPreset, applyTemplate, splitHorizontal, splitVertical, closePane, navigatePane } from './state/layoutEngine';
 import { useBroadcast } from './hooks/useBroadcast';
 import { usePtyStatusListener } from './hooks/usePtyStatus';
+import { usePtyAttentionListener } from './hooks/usePtyAttention';
 import { useAppStartup } from './hooks/useAppStartup';
 import { useWorkspaceKeybindings } from './hooks/useWorkspaceKeybindings';
 import { TabBar } from './components/layout/TabBar';
@@ -29,7 +30,6 @@ import { NotificationCenter } from './components/overlays/NotificationCenter';
 import { SearchBar } from './components/overlays/SearchBar';
 import { BroadcastOverlay } from './components/terminal/BroadcastOverlay';
 import { ShortcutSheet } from './components/overlays/ShortcutSheet';
-import { usePtyStatusStore } from './hooks/usePtyStatus';
 import './App.css';
 
 function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
@@ -138,6 +138,8 @@ function App() {
 
   // Listen for PTY exit events and track per-pane process status
   usePtyStatusListener();
+  // Surface a native notification when an unfocused pane signals attention (BEL)
+  usePtyAttentionListener(focusedPaneId);
   const loading = useAppStartup(createWorkspace);
 
   // Only pass broadcastWrite when broadcast mode is active
@@ -266,17 +268,6 @@ function App() {
   const handleClosePane = useCallback(
     (paneId: string) => {
       if (!activeWorkspace || !activeWorkspaceId) return;
-
-      // Check if this is a terminal with a running process
-      const pane = activeWorkspace.panes.find((p) => p.id === paneId);
-      if (pane?.type === 'terminal') {
-        const entry = usePtyStatusStore.getState().statuses.get(paneId);
-        if (entry && entry.status === 'running') {
-          // Show native confirm for keyboard-shortcut-triggered closes
-          const confirmed = window.confirm('This terminal has a running process. Close anyway?');
-          if (!confirmed) return;
-        }
-      }
 
       // If this is the last pane, close the entire workspace tab
       if (activeWorkspace.layout.type === 'leaf') {
