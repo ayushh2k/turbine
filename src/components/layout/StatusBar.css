@@ -99,8 +99,6 @@
   height: 6px;
   border-radius: 50%;
   background: var(--color-success);
-  box-shadow: 0 0 6px var(--color-success);
-  animation: status-bar-pulse 2.2s ease-in-out infinite;
 }
 
 @keyframes status-bar-pulse {
