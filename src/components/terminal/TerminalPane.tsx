@@ -389,7 +389,13 @@ function TerminalPaneInner({
     });
 
     // Handle resize
-    const resizeObserver = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry || entry.contentRect.width === 0 || entry.contentRect.height === 0) {
+        // Pane is hidden (e.g. inactive workspace tab uses display:none).
+        // Skipping prevents fit() from reflowing the buffer to a degenerate size.
+        return;
+      }
       try {
         fitAddon.fit();
         setPaneSize(paneId, terminal.cols, terminal.rows);
