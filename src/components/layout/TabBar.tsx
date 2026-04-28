@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '../../state/workspaceStore';
 import { usePtyStatusStore } from '../../hooks/usePtyStatus';
 import { openWorkspaceFolder } from '../../utils/openWorkspaceFolder';
 import { TemplatePicker } from '../overlays/TemplatePicker';
+import { CloseConfirmDialog } from '../overlays/CloseConfirmDialog';
 import type { PaneTemplate } from '../../types';
 import './TabBar.css';
 
@@ -33,6 +34,7 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [pendingClose, setPendingClose] = useState<{ id: string; name: string } | null>(null);
 
   const sorted = [...workspaces].sort((a, b) => a.tabOrder - b.tabOrder);
 
@@ -202,7 +204,7 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
                 aria-label={`Close ${ws.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  deleteWorkspace(ws.id);
+                  setPendingClose({ id: ws.id, name: ws.name });
                 }}
               >
                 ×
@@ -231,6 +233,18 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
         )}
         {onApplyTemplate && <TemplatePicker onSelect={onApplyTemplate} />}
       </div>
+
+      {pendingClose && (
+        <CloseConfirmDialog
+          message={`Close workspace "${pendingClose.name}"? All panes in this workspace will be closed.`}
+          confirmLabel="Close workspace"
+          onConfirm={() => {
+            deleteWorkspace(pendingClose.id);
+            setPendingClose(null);
+          }}
+          onCancel={() => setPendingClose(null)}
+        />
+      )}
     </div>
   );
 }

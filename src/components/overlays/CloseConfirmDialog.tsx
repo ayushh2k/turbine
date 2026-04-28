@@ -4,9 +4,16 @@ import './CloseConfirmDialog.css';
 interface CloseConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
+  message?: string;
+  confirmLabel?: string;
 }
 
-export function CloseConfirmDialog({ onConfirm, onCancel }: CloseConfirmDialogProps) {
+export function CloseConfirmDialog({
+  onConfirm,
+  onCancel,
+  message = 'This terminal has a running process. Close anyway?',
+  confirmLabel = 'Close',
+}: CloseConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -35,7 +42,7 @@ export function CloseConfirmDialog({ onConfirm, onCancel }: CloseConfirmDialogPr
         onClick={(e) => e.stopPropagation()}
       >
         <p id="close-confirm-msg" className="close-confirm__message">
-          This terminal has a running process. Close anyway?
+          {message}
         </p>
         <div className="close-confirm__actions">
           <button
@@ -51,7 +58,7 @@ export function CloseConfirmDialog({ onConfirm, onCancel }: CloseConfirmDialogPr
             className="close-confirm__btn close-confirm__btn--close"
             onClick={onConfirm}
           >
-            Close
+            {confirmLabel}
           </button>
         </div>
       </div>
