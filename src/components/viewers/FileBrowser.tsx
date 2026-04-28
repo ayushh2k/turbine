@@ -76,6 +76,38 @@ function getFileIconDef(name: string): FileIconDef {
 
 type GitStatus = 'new' | 'modified' | 'deleted' | 'renamed' | 'clean';
 
+type DirGitStatus = 'new' | 'modified';
+
+/**
+ * Rolls up file-level git statuses to directory level (VS Code style).
+ * - "new" wins if any descendant is new (untracked).
+ * - Otherwise "modified" if any descendant is modified/deleted/renamed.
+ * Clean dirs are omitted from the map.
+ */
+function rollupDirStatuses(
+  fileStatuses: Map<string, GitStatus>,
+): Map<string, DirGitStatus> {
+  const dirStatuses = new Map<string, DirGitStatus>();
+
+  for (const [filePath, status] of fileStatuses) {
+    if (status === 'clean') continue;
+
+    const segments = filePath.split('/').filter(Boolean);
+    // Walk every ancestor directory
+    for (let i = 1; i < segments.length; i++) {
+      const dirPath = segments.slice(0, i).join('/');
+      const existing = dirStatuses.get(dirPath);
+      if (status === 'new') {
+        dirStatuses.set(dirPath, 'new');
+      } else if (existing !== 'new') {
+        dirStatuses.set(dirPath, 'modified');
+      }
+    }
+  }
+
+  return dirStatuses;
+}
+
 interface FileBrowserProps {
   rootPath: string | null;
   entries: FileTreeEntry[];
@@ -214,10 +246,11 @@ export function FileBrowser({
   onRefresh,
 }: FileBrowserProps) {
   const [query, setQuery] = useState('');
-  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [gitStatuses, setGitStatuses] = useState<Map<string, GitStatus>>(new Map());
 
   const tree = useMemo(() => createTree(entries), [entries]);
+  const gitDirStatuses = useMemo(() => rollupDirStatuses(gitStatuses), [gitStatuses]);
 
   // Fetch git status for the project
   useEffect(() => {
@@ -251,7 +284,7 @@ export function FileBrowser({
   }, [entries, query]);
 
   const toggleDirectory = useCallback((relativePath: string) => {
-    setCollapsedDirs((prev) => {
+    setExpandedDirs((prev) => {
       const next = new Set(prev);
       if (next.has(relativePath)) {
         next.delete(relativePath);
@@ -331,9 +364,10 @@ export function FileBrowser({
                 key={node.relativePath || node.path}
                 node={node}
                 depth={0}
-                collapsedDirs={collapsedDirs}
+                expandedDirs={expandedDirs}
                 activeFilePath={activeFilePath ?? null}
                 gitStatuses={gitStatuses}
+                gitDirStatuses={gitDirStatuses}
                 onToggleDirectory={toggleDirectory}
                 onOpenFile={onOpenFile}
               />
@@ -348,9 +382,10 @@ export function FileBrowser({
 interface TreeNodeProps {
   node: FileTreeNode;
   depth: number;
-  collapsedDirs: Set<string>;
+  expandedDirs: Set<string>;
   activeFilePath: string | null;
   gitStatuses: Map<string, GitStatus>;
+  gitDirStatuses: Map<string, DirGitStatus>;
   onToggleDirectory: (relativePath: string) => void;
   onOpenFile: (path: string) => void;
 }
@@ -360,16 +395,22 @@ function gitStatusClass(status: GitStatus | undefined): string {
   return `file-browser__row--git-${status}`;
 }
 
+function gitDirStatusClass(status: DirGitStatus | undefined): string {
+  if (!status) return '';
+  return `file-browser__row--git-dir-${status}`;
+}
+
 function TreeNode({
   node,
   depth,
-  collapsedDirs,
+  expandedDirs,
   activeFilePath,
   gitStatuses,
+  gitDirStatuses,
   onToggleDirectory,
   onOpenFile,
 }: TreeNodeProps) {
-  const collapsed = node.isDir && collapsedDirs.has(node.relativePath);
+  const expanded = node.isDir && expandedDirs.has(node.relativePath);
   const indent = 8 + depth * 16;
 
   if (!node.isDir) {
@@ -399,26 +440,33 @@ function TreeNode({
     );
   }
 
+  const dirStatus = gitDirStatuses.get(node.relativePath);
+
   return (
     <div>
       <button
         type="button"
-        className="file-browser__row file-browser__row--dir"
+        className={[
+          'file-browser__row',
+          'file-browser__row--dir',
+          gitDirStatusClass(dirStatus),
+        ].filter(Boolean).join(' ')}
         style={{ paddingLeft: `${indent}px` }}
         onClick={() => onToggleDirectory(node.relativePath)}
       >
-        <span className={`file-browser__chevron${collapsed ? '' : ' file-browser__chevron--open'}`}>▶</span>
-        <span className="file-browser__dir-icon" style={{ color: collapsed ? '#6d8086' : '#dcb67a' }}>{collapsed ? '▸' : '▾'}</span>
+        <span className={`file-browser__chevron${expanded ? ' file-browser__chevron--open' : ''}`}>▶</span>
+        <span className="file-browser__dir-icon" style={{ color: expanded ? '#dcb67a' : '#6d8086' }}>{expanded ? '▾' : '▸'}</span>
         <span className="file-browser__label">{node.name}</span>
       </button>
-      {!collapsed && node.children.map((child) => (
+      {expanded && node.children.map((child) => (
         <TreeNode
           key={joinTreePath(node.relativePath, child.name)}
           node={child}
           depth={depth + 1}
-          collapsedDirs={collapsedDirs}
+          expandedDirs={expandedDirs}
           activeFilePath={activeFilePath}
           gitStatuses={gitStatuses}
+          gitDirStatuses={gitDirStatuses}
           onToggleDirectory={onToggleDirectory}
           onOpenFile={onOpenFile}
         />

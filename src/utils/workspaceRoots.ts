@@ -12,7 +12,7 @@ function getParentPath(path: string): string {
 }
 
 function getPanePath(pane: PaneConfig): string | null {
-  if (!pane.workingDirectory) {
+  if (!pane.workingDirectory || pane.workingDirectory === '.') {
     return null;
   }
 
@@ -23,20 +23,21 @@ function getPanePath(pane: PaneConfig): string | null {
   return pane.workingDirectory;
 }
 
+/**
+ * Derives a stable root path for a workspace. The result must NOT depend on which pane
+ * is currently focused — the file browser, swarm panes, etc. lock to this root and only
+ * change when the active workspace changes.
+ *
+ * Strategy: pick the first terminal pane's working directory (in pane order). Fall back
+ * to any pane that has a usable path. This is stable because pane order doesn't change
+ * on focus and the first pane's `workingDirectory` is set when the workspace is created
+ * (e.g., from the folder picker) and inherited by subsequent splits.
+ */
 export function deriveWorkspaceRoot(
   workspace: Workspace | undefined,
-  focusedPaneId: string | null,
 ): string | null {
   if (!workspace) {
     return null;
-  }
-
-  const focusedPane = workspace.panes.find((pane) => pane.id === focusedPaneId);
-  if (focusedPane?.type === 'terminal') {
-    const focusedTerminalRoot = getPanePath(focusedPane);
-    if (focusedTerminalRoot) {
-      return focusedTerminalRoot;
-    }
   }
 
   for (const pane of workspace.panes) {
@@ -48,11 +49,6 @@ export function deriveWorkspaceRoot(
     if (root) {
       return root;
     }
-  }
-
-  const focusedRoot = focusedPane ? getPanePath(focusedPane) : null;
-  if (focusedRoot) {
-    return focusedRoot;
   }
 
   for (const pane of workspace.panes) {
