@@ -40,6 +40,8 @@ export function MediaViewer({ filePath, onFocus }: MediaViewerProps) {
   const [dimensions, setDimensions] = useState<{ w: number; h: number } | null>(null);
   const blobUrlRef = useRef<string | null>(null);
 
+  const isSvg = filePath.toLowerCase().endsWith('.svg');
+
   const mediaKind = useMemo(() => getMediaKind(filePath), [filePath]);
   const fileName = useMemo(() => filePath.replace(/\\/g, '/').split('/').pop() ?? filePath, [filePath]);
   const formatLabel = useMemo(() => getMediaFormatLabel(filePath), [filePath]);
@@ -60,6 +62,13 @@ export function MediaViewer({ filePath, onFocus }: MediaViewerProps) {
     invoke<number[]>('read_binary_file', { path: filePath })
       .then((bytes) => {
         setFileSize(bytes.length);
+        // SVGs sometimes fail to render via blob URL in WKWebView (no intrinsic
+        // dimensions, blob loader quirks). Inline as a UTF-8 data URL instead.
+        if (isSvg) {
+          const text = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+          setBlobUrl(`data:image/svg+xml;utf8,${encodeURIComponent(text)}`);
+          return;
+        }
         const blob = new Blob([new Uint8Array(bytes)], { type: getMimeType(filePath) });
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
