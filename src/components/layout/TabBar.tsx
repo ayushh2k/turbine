@@ -149,13 +149,6 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
             >
-              {/* Color indicator */}
-              <span
-                className="tab-bar__color-dot"
-                style={{
-                  backgroundColor: ws.tabColor ?? 'var(--color-accent)',
-                }}
-              />
               {editingId === ws.id ? (
                 <input
                   className="tab-bar__tab-rename-input"
@@ -217,6 +210,14 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
             </div>
           );
         })}
+        <button
+          className="tab-bar__new-btn"
+          title="Open folder as workspace"
+          aria-label="Open folder as workspace"
+          onClick={() => void openWorkspaceFolder()}
+        >
+          +
+        </button>
       </div>
 
       {/* Draggable spacer — this is the macOS titlebar drag region */}
@@ -229,14 +230,6 @@ export function TabBar({ onContextMenu, onApplyTemplate, homeActive, onHomeClick
           </span>
         )}
         {onApplyTemplate && <TemplatePicker onSelect={onApplyTemplate} />}
-        <button
-          className="tab-bar__new-btn"
-          title="Open folder as workspace"
-          aria-label="Open folder as workspace"
-          onClick={() => void openWorkspaceFolder()}
-        >
-          +
-        </button>
       </div>
     </div>
   );
