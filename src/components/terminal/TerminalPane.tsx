@@ -22,6 +22,37 @@ import { spawnPaneSession } from '../../state/terminalSession';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
+// Module-level cache: preserves the xterm Terminal across React unmount/remount that
+// happens when the layout tree restructures during a split (a leaf becomes a split node,
+// forcing React to discard the LeafPane subtree and mount a new one). Without this, the
+// scrollback was wiped every time the user split a pane.
+interface CachedTerminal {
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  searchAddon: SearchAddon;
+}
+const terminalCache = new Map<string, CachedTerminal>();
+
+// Detached node where we park xterm's DOM element during the gap between unmount and
+// remount, so the canvas / WebGL context isn't destroyed and we don't lose render state.
+function getParkingNode(): HTMLElement {
+  let node = document.getElementById('turbine-terminal-parking');
+  if (!node) {
+    node = document.createElement('div');
+    node.id = 'turbine-terminal-parking';
+    node.style.position = 'absolute';
+    node.style.left = '-9999px';
+    node.style.top = '0';
+    node.style.width = '0';
+    node.style.height = '0';
+    node.style.overflow = 'hidden';
+    node.style.visibility = 'hidden';
+    node.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(node);
+  }
+  return node;
+}
+
 interface TerminalPaneProps {
   paneId: string;
   cwd?: string;
@@ -182,100 +213,126 @@ function TerminalPaneInner({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const terminal = new Terminal({
-      scrollback: scrollbackLines,
-      cursorBlink: true,
-      fontSize: 13,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-      theme: (themeId ? getXtermTheme(themeId) : undefined) ?? {
-        background: '#0b1929',
-        foreground: '#c8dce8',
-        cursor: '#00e5c8',
-        selectionBackground: '#1a355080',
-      },
-      allowProposedApi: true,
-      macOptionIsMeta: true,
-    });
+    const cached = terminalCache.get(paneId);
+    let terminal: Terminal;
+    let fitAddon: FitAddon;
+    let searchAddon: SearchAddon;
+    const isCacheHit = cached !== undefined;
 
-    const fitAddon = new FitAddon();
-    const searchAddon = new SearchAddon();
+    if (cached) {
+      terminal = cached.terminal;
+      fitAddon = cached.fitAddon;
+      searchAddon = cached.searchAddon;
+      // Move parked xterm element back into the live container.
+      if (terminal.element && terminal.element.parentNode !== containerRef.current) {
+        containerRef.current.appendChild(terminal.element);
+      }
+    } else {
+      terminal = new Terminal({
+        scrollback: scrollbackLines,
+        cursorBlink: true,
+        fontSize: 13,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        theme: (themeId ? getXtermTheme(themeId) : undefined) ?? {
+          background: '#0b1929',
+          foreground: '#c8dce8',
+          cursor: '#00e5c8',
+          selectionBackground: '#1a355080',
+        },
+        allowProposedApi: true,
+        macOptionIsMeta: true,
+      });
 
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(searchAddon);
+      fitAddon = new FitAddon();
+      searchAddon = new SearchAddon();
 
-    // Web links addon — make URLs in terminal output clickable
-    const webLinksAddon = new WebLinksAddon((_event, uri) => {
-      // Open URL in default browser via Tauri
-      window.open(uri, '_blank');
-    });
-    terminal.loadAddon(webLinksAddon);
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(searchAddon);
+
+      // Web links addon — make URLs in terminal output clickable
+      const webLinksAddon = new WebLinksAddon((_event, uri) => {
+        window.open(uri, '_blank');
+      });
+      terminal.loadAddon(webLinksAddon);
+
+      terminal.open(containerRef.current);
+
+      // Try WebGL addon, fall back silently
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => webglAddon.dispose());
+        terminal.loadAddon(webglAddon);
+      } catch {
+        // WebGL not available — canvas renderer is fine
+      }
+
+      // Image addon — Sixel + iTerm image protocol (IIP) support
+      try {
+        const imageAddon = new ImageAddon({
+          enableSizeReports: true,
+          pixelLimit: 2 ** 16,
+          storageLimit: 128,
+          showPlaceholder: true,
+          sixelSupport: true,
+          sixelScrolling: true,
+          sixelPaletteLimit: 256,
+          sixelSizeLimit: 25_000_000,
+          iipSupport: true,
+          iipSizeLimit: 20_000_000,
+        });
+        terminal.loadAddon(imageAddon);
+      } catch {
+        // Image addon not available
+      }
+
+      terminalCache.set(paneId, { terminal, fitAddon, searchAddon });
+    }
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
 
-    terminal.open(containerRef.current);
-
-    // Try WebGL addon, fall back silently
     try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => webglAddon.dispose());
-      terminal.loadAddon(webglAddon);
+      fitAddon.fit();
     } catch {
-      // WebGL not available — canvas renderer is fine
+      // fit may fail if container has zero dimensions; ResizeObserver below will retry.
     }
-
-    // Image addon — Sixel + iTerm image protocol (IIP) support
-    try {
-      const imageAddon = new ImageAddon({
-        enableSizeReports: true,
-        pixelLimit: 2 ** 16, // 4096×4096
-        storageLimit: 128,   // 128 MB FIFO cache
-        showPlaceholder: true,
-        sixelSupport: true,
-        sixelScrolling: true,
-        sixelPaletteLimit: 256,
-        sixelSizeLimit: 25_000_000,
-        iipSupport: true,
-        iipSizeLimit: 20_000_000,
-      });
-      terminal.loadAddon(imageAddon);
-    } catch {
-      // Image addon not available
-    }
-
-    fitAddon.fit();
     setPaneSize(paneId, terminal.cols, terminal.rows);
-    setStatus(paneId, 'running', null);
-    clearBlocks();
-    setShowCommandBlocks(false);
 
-    spawnPaneSession({
-      paneId,
-      cwd,
-      env,
-      shell: effectiveShell,
-      startupCommand,
-      runStartupCommand: autoLaunch,
-      cols: terminal.cols,
-      rows: terminal.rows,
-    }).then(() => {
-      // Clear startup command after it runs so it doesn't re-execute on remount
-      // (layout tree changes from splits cause React to remount terminals)
-      if (autoLaunch && startupCommand) {
-        useWorkspaceStore.setState((s) => ({
-          workspaces: s.workspaces.map((w) => ({
-            ...w,
-            panes: w.panes.map((p) =>
-              p.id === paneId ? { ...p, autoLaunch: false, startupCommand: null } : p,
-            ),
-          })),
-        }));
-      }
-    }).catch((err) => {
-      setStatus(paneId, 'errored', null);
-      terminal.writeln(`\r\n\x1b[31mFailed to spawn shell: ${err}\x1b[0m`);
-    });
+    if (!isCacheHit) {
+      setStatus(paneId, 'running', null);
+      clearBlocks();
+      setShowCommandBlocks(false);
+
+      spawnPaneSession({
+        paneId,
+        cwd,
+        env,
+        shell: effectiveShell,
+        startupCommand,
+        runStartupCommand: autoLaunch,
+        cols: terminal.cols,
+        rows: terminal.rows,
+      }).then(() => {
+        // Clear startup command after it runs so it doesn't re-execute on remount
+        if (autoLaunch && startupCommand) {
+          useWorkspaceStore.setState((s) => ({
+            workspaces: s.workspaces.map((w) => ({
+              ...w,
+              panes: w.panes.map((p) =>
+                p.id === paneId ? { ...p, autoLaunch: false, startupCommand: null } : p,
+              ),
+            })),
+          }));
+        }
+      }).catch((err) => {
+        setStatus(paneId, 'errored', null);
+        terminal.writeln(`\r\n\x1b[31mFailed to spawn shell: ${err}\x1b[0m`);
+      });
+    } else {
+      // Cache hit — PTY is still alive; just re-sync the size in case it changed.
+      invoke('pty_resize', { paneId, cols: terminal.cols, rows: terminal.rows }).catch(() => {});
+    }
 
     // Listen for PTY output (scoped to this window to prevent duplicate delivery)
     let lineBuffer = '';
@@ -409,20 +466,28 @@ function TerminalPaneInner({
       }
       resizeObserver.disconnect();
       unlisten?.();
-      removePaneSize(paneId);
-      clearBlocks();
 
-      // Only kill PTY if the pane was actually removed from the workspace.
-      // During splits, the layout tree restructures causing React to unmount/remount
-      // the old terminal — but the pane still exists, so we must keep the PTY alive.
+      // Only fully tear down if the pane was actually removed from the workspace.
+      // During splits, the layout tree restructures and React unmounts/remounts the
+      // pane — keeping the cached Terminal instance preserves the buffer/scrollback.
       const ws = useWorkspaceStore.getState();
-      const activeWs = ws.workspaces.find((w) => w.id === ws.activeWorkspaceId);
-      const paneStillExists = activeWs?.panes.some((p) => p.id === paneId);
-      if (!paneStillExists) {
+      const paneStillExists = ws.workspaces.some((w) =>
+        w.panes.some((p) => p.id === paneId),
+      );
+
+      if (paneStillExists) {
+        // Park the xterm element so its DOM/canvas/WebGL state survives the gap.
+        if (terminal.element) {
+          getParkingNode().appendChild(terminal.element);
+        }
+      } else {
         invoke('pty_kill', { paneId }).catch(() => {});
+        removePaneSize(paneId);
+        clearBlocks();
+        terminalCache.delete(paneId);
+        terminal.dispose();
       }
 
-      terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
