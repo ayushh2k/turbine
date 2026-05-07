@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Run Claude Code, Gemini CLI, Codex, or any CLI tool side-by-side in a tiled terminal workspace with built-in code editing, task management, and multi-agent orchestration.
+  Run Claude Code, Codex, Opencode, or any CLI tool side-by-side in a tiled terminal workspace with built-in code editing, task management, and multi-agent orchestration.
 </p>
 
 <p align="center">
@@ -114,7 +114,7 @@ The task runner and swarm features launch external CLI tools. Install whichever 
 | Agent | Install |
 |-------|---------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `npm i -g @anthropic-ai/claude-code` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm i -g @google/gemini-cli` |
+| [Opencode](https://github.com/sst/opencode) | `npm i -g opencode-ai` |
 | [OpenAI Codex](https://github.com/openai/codex) | `npm i -g @openai/codex` |
 
 Any CLI tool that reads stdin/stdout works. Configure custom agent presets in the Swarm Panel.
