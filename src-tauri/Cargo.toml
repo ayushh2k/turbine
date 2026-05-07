@@ -1,6 +1,6 @@
 [package]
 name = "turbine-app"
-version = "0.1.5"
+version = "0.1.6"
 description = "A keyboard-driven terminal workspace for AI-assisted development"
 authors = ["Turbine Contributors"]
 license = "MIT"
