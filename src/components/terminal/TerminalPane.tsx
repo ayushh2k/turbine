@@ -411,6 +411,17 @@ function TerminalPaneInner({
     });
     resizeObserver.observe(containerRef.current);
 
+    const writeToPty = (bytes: Uint8Array) => {
+      if (broadcastWriteRef.current) {
+        broadcastWriteRef.current(bytes);
+      } else {
+        invoke('pty_write', {
+          paneId,
+          data: Array.from(bytes),
+        }).catch(() => {});
+      }
+    };
+
     // Copy/paste keybindings
     terminal.attachCustomKeyEventHandler((e) => {
       // Ctrl+Shift+C — copy
@@ -425,10 +436,7 @@ function TerminalPaneInner({
       if (e.ctrlKey && e.shiftKey && e.key === 'V' && e.type === 'keydown') {
         navigator.clipboard.readText().then((text) => {
           const encoder = new TextEncoder();
-          invoke('pty_write', {
-            paneId,
-            data: Array.from(encoder.encode(text)),
-          }).catch(() => {});
+          writeToPty(encoder.encode(text));
         }).catch(() => {});
         return false;
       }
@@ -436,6 +444,27 @@ function TerminalPaneInner({
       if (e.ctrlKey && !e.shiftKey && e.key === 'f' && e.type === 'keydown') {
         setShowSearch((prev) => !prev);
         return false;
+      }
+      // Option+Arrow / Option+Delete — word navigation/deletion (Mac)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.type === 'keydown') {
+        const encoder = new TextEncoder();
+        switch (e.key) {
+          case 'ArrowLeft':
+            writeToPty(encoder.encode('\x1bb'));
+            return false;
+          case 'ArrowRight':
+            writeToPty(encoder.encode('\x1bf'));
+            return false;
+          case 'ArrowUp':
+            writeToPty(encoder.encode('\x1b[1;3A'));
+            return false;
+          case 'ArrowDown':
+            writeToPty(encoder.encode('\x1b[1;3B'));
+            return false;
+          case 'Backspace':
+            writeToPty(encoder.encode('\x1b\x7f'));
+            return false;
+        }
       }
       return true;
     });
