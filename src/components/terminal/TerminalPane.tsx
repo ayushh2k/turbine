@@ -153,6 +153,12 @@ function TerminalPaneInner({
     return () => window.removeEventListener('turbine:search-focused-pane', handleSearch);
   }, [paneId]);
 
+  useEffect(() => {
+    if (isFocused) {
+      terminalRef.current?.focus();
+    }
+  }, [isFocused]);
+
   // Global search-across-panes: highlight matches when query changes
   useEffect(() => {
     const addon = searchAddonRef.current;

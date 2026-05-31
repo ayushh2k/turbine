@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, Component, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, Component, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWorkspaceStore, createDefaultPane } from './state/workspaceStore';
@@ -160,6 +160,27 @@ function App() {
   // Dismiss home view when user switches workspace
   useEffect(() => {
     setShowHome(false);
+  }, [activeWorkspaceId]);
+
+  const lastFocusedByWsRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (focusedPaneId && activeWorkspaceId) {
+      lastFocusedByWsRef.current[activeWorkspaceId] = focusedPaneId;
+    }
+  }, [focusedPaneId, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    const ws = useWorkspaceStore.getState().workspaces.find(
+      (w) => w.id === activeWorkspaceId,
+    );
+    if (!ws || ws.panes.length === 0) return;
+    const remembered = lastFocusedByWsRef.current[activeWorkspaceId];
+    const target =
+      remembered && ws.panes.some((p) => p.id === remembered)
+        ? remembered
+        : ws.panes[0].id;
+    setFocusedPaneId(target);
   }, [activeWorkspaceId]);
 
   // Update window title when active workspace changes
