@@ -129,6 +129,42 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
     )
 }
 
+/// Creates the log dashboard tables (log_sources and filter_presets).
+fn create_log_dashboard_tables(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS log_sources (
+            id TEXT PRIMARY KEY,
+            pane_id TEXT NOT NULL,
+            source_type TEXT NOT NULL CHECK(source_type IN (
+                'local_file', 'docker_container', 'ssh_remote',
+                'kubernetes_pod', 'systemd_journal', 'custom_command'
+            )),
+            display_name TEXT NOT NULL,
+            color TEXT,
+            params_json TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_log_sources_pane ON log_sources(pane_id);
+
+        CREATE TABLE IF NOT EXISTS filter_presets (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            regex_pattern TEXT,
+            levels_json TEXT NOT NULL DEFAULT '[]',
+            sources_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filter_presets_workspace ON filter_presets(workspace_id);
+        ",
+    )
+}
+
 /// Runs lightweight migrations for schema changes on existing databases.
 fn run_migrations(conn: &Connection) -> SqliteResult<()> {
     // Migration 1: Add board_columns_json to workspaces if missing
@@ -327,7 +363,10 @@ fn run_migrations(conn: &Connection) -> SqliteResult<()> {
 pub fn init_db(db_path: &Path) -> Result<DbInitResult, String> {
     // First attempt: open existing or create new
     match Connection::open(db_path) {
-        Ok(conn) => match create_tables(&conn).and_then(|()| run_migrations(&conn)) {
+        Ok(conn) => match create_tables(&conn)
+            .and_then(|()| create_log_dashboard_tables(&conn))
+            .and_then(|()| run_migrations(&conn))
+        {
             Ok(()) => Ok(DbInitResult {
                 connection: conn,
                 was_recreated: false,
@@ -348,6 +387,8 @@ fn recreate_db(db_path: &Path) -> Result<DbInitResult, String> {
     let conn =
         Connection::open(db_path).map_err(|e| format!("Failed to create fresh DB: {e}"))?;
     create_tables(&conn).map_err(|e| format!("Failed to create tables in fresh DB: {e}"))?;
+    create_log_dashboard_tables(&conn)
+        .map_err(|e| format!("Failed to create log dashboard tables in fresh DB: {e}"))?;
     run_migrations(&conn).map_err(|e| format!("Failed to run migrations in fresh DB: {e}"))?;
 
     Ok(DbInitResult {

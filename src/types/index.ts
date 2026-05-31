@@ -20,7 +20,7 @@ export interface Workspace {
 export interface PaneConfig {
   id: string;
   workspaceId: string;
-  type: "home" | "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer" | "swarm_panel";
+  type: "home" | "terminal" | "code_viewer" | "media_viewer" | "task_board" | "diff_viewer" | "swarm_panel" | "log_dashboard";
   workingDirectory: string;
   startupCommand: string | null;
   autoLaunch: boolean;
@@ -178,4 +178,126 @@ export interface CommandBlock {
   endLine: number;
   exitCode: number | null;
   collapsed: boolean;
+}
+
+
+// ─── Log Dashboard Types ────────────────────────────────────────────────────
+
+// Log source types
+export type LogSourceType =
+  | 'local_file'
+  | 'docker_container'
+  | 'ssh_remote'
+  | 'kubernetes_pod'
+  | 'systemd_journal'
+  | 'custom_command';
+
+// Source-specific parameters
+export interface LocalFileParams {
+  filePath: string;
+}
+
+export interface DockerContainerParams {
+  containerNameOrId: string;
+  tail?: number;
+}
+
+export interface SshRemoteParams {
+  host: string;
+  remoteFilePath: string;
+  user?: string;
+  port?: number;
+  identityFile?: string;
+}
+
+export interface KubernetesPodParams {
+  podName: string;
+  namespace?: string;
+  containerName?: string;
+  tail?: number;
+}
+
+export interface SystemdJournalParams {
+  unitName: string;
+  lines?: number;
+}
+
+export interface CustomCommandParams {
+  command: string;
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+export type LogSourceParams =
+  | LocalFileParams
+  | DockerContainerParams
+  | SshRemoteParams
+  | KubernetesPodParams
+  | SystemdJournalParams
+  | CustomCommandParams;
+
+// Log source configuration
+export interface LogSourceConfig {
+  id: string;
+  paneId: string;
+  sourceType: LogSourceType;
+  displayName: string;
+  color: string | null;
+  params: LogSourceParams;
+  sortOrder: number;
+}
+
+// Log levels
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+// Parsed log entry
+export interface LogEntry {
+  id: string;
+  sourceId: string;
+  sourceLabel: string;
+  sourceColor: string;
+  timestamp: Date;
+  level: LogLevel;
+  message: string;
+  rawText: string;
+}
+
+// Timestamp display formats
+export type TimestampFormat = 'HH:mm:ss.SSS' | 'HH:mm:ss' | 'ISO' | 'relative';
+
+// Filter preset (persisted)
+export interface FilterPreset {
+  id: string;
+  workspaceId: string;
+  name: string;
+  regexPattern: string | null;
+  levels: LogLevel[];
+  sources: string[];
+}
+
+// Filter state (in-memory)
+export interface FilterState {
+  regex: string | null;
+  levels: Set<LogLevel>;
+  sources: Set<string>;
+}
+
+// Source status tracking
+export type SourceStatus = 'running' | 'stopped' | 'error' | 'connecting';
+
+export interface SourceStatusEntry {
+  sourceId: string;
+  syntheticPaneId: string;
+  status: SourceStatus;
+  errorMessage?: string;
+}
+
+// Dashboard pane state (in-memory, per-pane)
+export interface DashboardPaneState {
+  sources: LogSourceConfig[];
+  filter: FilterState;
+  isPaused: boolean;
+  pausedEntryCount: number;
+  autoScroll: boolean;
+  expandedEntryIds: Set<string>;
 }

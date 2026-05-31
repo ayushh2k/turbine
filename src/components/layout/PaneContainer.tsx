@@ -9,6 +9,7 @@ import { MediaViewer } from '../viewers/MediaViewer';
 import { TaskBoard } from '../viewers/TaskBoard';
 import { DiffViewer } from '../viewers/DiffViewer';
 import { SwarmPanel } from '../swarm/SwarmPanel';
+import { LogDashboardPane } from '../panes/log-dashboard';
 import { PaneToolbar } from './PaneToolbar';
 import { CloseConfirmDialog } from '../overlays/CloseConfirmDialog';
 import { usePaneStatus } from '../../hooks/usePtyStatus';
@@ -25,6 +26,7 @@ function getPaneTypeLabel(pane: PaneConfig): string {
     case 'task_board': return 'Tasks';
     case 'diff_viewer': return 'Diff';
     case 'swarm_panel': return 'Swarm';
+    case 'log_dashboard': return 'Logs';
     default: return 'Pane';
   }
 }
@@ -559,6 +561,13 @@ function LeafPane({
           projectPath={pane.workingDirectory}
           workspaceId={pane.workspaceId}
           sourcePaneId={paneId}
+          onFocus={handleFocusPane}
+        />
+      )}
+      {pane?.type === 'log_dashboard' && (
+        <LogDashboardPane
+          paneId={paneId}
+          workspaceId={pane.workspaceId}
           onFocus={handleFocusPane}
         />
       )}

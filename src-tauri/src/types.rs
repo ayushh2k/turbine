@@ -127,3 +127,24 @@ pub struct MailboxMessage {
     pub content: String,
     pub created_at: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LogSourceConfig {
+    pub id: String,
+    pub pane_id: String,
+    pub source_type: String,
+    pub display_name: String,
+    pub color: Option<String>,
+    pub params_json: String,
+    pub sort_order: i32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FilterPreset {
+    pub id: String,
+    pub workspace_id: String,
+    pub name: String,
+    pub regex_pattern: Option<String>,
+    pub levels_json: String,
+    pub sources_json: String,
+}

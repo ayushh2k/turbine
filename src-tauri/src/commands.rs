@@ -1,4 +1,4 @@
-use crate::types::{AppSettings, CustomThemeRecord, PaneConfig, Task, WorkspaceConfig};
+use crate::types::{AppSettings, CustomThemeRecord, FilterPreset, LogSourceConfig, PaneConfig, Task, WorkspaceConfig};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -807,6 +807,169 @@ pub fn load_swarm_agents(db: State<'_, DbState>, swarm_run_id: String) -> Result
     }
 
     Ok(agents)
+}
+
+// ── Log Source Commands ────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn save_log_sources(
+    db: State<'_, DbState>,
+    pane_id: String,
+    sources: Vec<LogSourceConfig>,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    // Delete existing rows for this pane_id
+    conn.execute(
+        "DELETE FROM log_sources WHERE pane_id = ?1",
+        rusqlite::params![pane_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Insert all provided sources
+    for source in &sources {
+        conn.execute(
+            "INSERT INTO log_sources (id, pane_id, source_type, display_name, color, params_json, sort_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                source.id,
+                source.pane_id,
+                source.source_type,
+                source.display_name,
+                source.color,
+                source.params_json,
+                source.sort_order,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_log_sources(
+    db: State<'_, DbState>,
+    pane_id: String,
+) -> Result<Vec<LogSourceConfig>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, pane_id, source_type, display_name, color, params_json, sort_order
+             FROM log_sources WHERE pane_id = ?1 ORDER BY sort_order ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![pane_id], |row| {
+            Ok(LogSourceConfig {
+                id: row.get(0)?,
+                pane_id: row.get(1)?,
+                source_type: row.get(2)?,
+                display_name: row.get(3)?,
+                color: row.get(4)?,
+                params_json: row.get(5)?,
+                sort_order: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut sources = Vec::new();
+    for row in rows {
+        sources.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(sources)
+}
+
+#[tauri::command]
+pub fn delete_log_sources(
+    db: State<'_, DbState>,
+    pane_id: String,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM log_sources WHERE pane_id = ?1",
+        rusqlite::params![pane_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ── Filter Preset Commands ────────────────────────────────────────────
+
+#[tauri::command]
+pub fn save_filter_preset(
+    db: State<'_, DbState>,
+    preset: FilterPreset,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO filter_presets (id, workspace_id, name, regex_pattern, levels_json, sources_json, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE((SELECT created_at FROM filter_presets WHERE id = ?1), datetime('now')), datetime('now'))",
+        rusqlite::params![
+            preset.id,
+            preset.workspace_id,
+            preset.name,
+            preset.regex_pattern,
+            preset.levels_json,
+            preset.sources_json,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_filter_presets(
+    db: State<'_, DbState>,
+    workspace_id: String,
+) -> Result<Vec<FilterPreset>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, workspace_id, name, regex_pattern, levels_json, sources_json
+             FROM filter_presets WHERE workspace_id = ?1 ORDER BY name ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![workspace_id], |row| {
+            Ok(FilterPreset {
+                id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                name: row.get(2)?,
+                regex_pattern: row.get(3)?,
+                levels_json: row.get(4)?,
+                sources_json: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut presets = Vec::new();
+    for row in rows {
+        presets.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(presets)
+}
+
+#[tauri::command]
+pub fn delete_filter_preset(
+    db: State<'_, DbState>,
+    preset_id: String,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM filter_presets WHERE id = ?1",
+        rusqlite::params![preset_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ── Workflow Step Commands ─────────────────────────────────────────────
