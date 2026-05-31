@@ -258,13 +258,24 @@ function TerminalPaneInner({
 
       terminal.open(containerRef.current);
 
-      // Try WebGL addon, fall back silently
+      // Try WebGL addon, fall back silently to the DOM renderer.
       try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => webglAddon.dispose());
+        let webglAddon = new WebglAddon();
+        // GPU context loss (macOS backgrounding the GPU, memory pressure) kills
+        // the renderer. Recreate it instead of leaving the pane unaccelerated
+        // with a dead renderer (the old code only disposed it).
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+          try {
+            webglAddon = new WebglAddon();
+            terminal.loadAddon(webglAddon);
+          } catch {
+            // WebGL gone for good — DOM renderer takes over.
+          }
+        });
         terminal.loadAddon(webglAddon);
       } catch {
-        // WebGL not available — canvas renderer is fine
+        // WebGL not available — DOM renderer is fine.
       }
 
       // Image addon — Sixel + iTerm image protocol (IIP) support
@@ -411,6 +422,36 @@ function TerminalPaneInner({
     });
     resizeObserver.observe(containerRef.current);
 
+    // Long sessions can corrupt the WebGL glyph texture atlas: text renders as
+    // garbled glyphs that a manual resize clears (resize forces an atlas
+    // rebuild). Rebuild the atlas directly at the points where the corruption
+    // typically surfaces — when the window regains visibility or focus after the
+    // GPU was backgrounded — so the user never has to resize to fix it.
+    const rebuildAtlas = () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        terminal.clearTextureAtlas();
+      } catch {
+        // Renderer disposed or DOM renderer active — nothing to clear.
+      }
+    };
+    document.addEventListener('visibilitychange', rebuildAtlas);
+    window.addEventListener('focus', rebuildAtlas);
+
+    // Moving the window between monitors with different device-pixel-ratios
+    // desyncs the WebGL canvas dimensions (another garbled-text cause). Re-fit
+    // and rebuild the atlas when the DPR changes.
+    const dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const onDprChange = () => {
+      try {
+        fitAddon.fit();
+        terminal.clearTextureAtlas();
+      } catch {
+        // fit/clear may fail if the terminal is not visible.
+      }
+    };
+    dprQuery.addEventListener('change', onDprChange);
+
     const writeToPty = (bytes: Uint8Array) => {
       if (broadcastWriteRef.current) {
         broadcastWriteRef.current(bytes);
@@ -501,6 +542,9 @@ function TerminalPaneInner({
         scrollRafRef.current = null;
       }
       resizeObserver.disconnect();
+      document.removeEventListener('visibilitychange', rebuildAtlas);
+      window.removeEventListener('focus', rebuildAtlas);
+      dprQuery.removeEventListener('change', onDprChange);
       unlisten?.();
 
       // Only fully tear down if the pane was actually removed from the workspace.
