@@ -428,12 +428,11 @@ function TerminalPaneInner({
     });
     resizeObserver.observe(containerRef.current);
 
-    // Long sessions can corrupt the WebGL glyph texture atlas: text renders as
-    // garbled glyphs that a manual resize clears (resize forces an atlas
-    // rebuild). Rebuild the atlas directly at the points where the corruption
-    // typically surfaces — when the window regains visibility or focus after the
-    // GPU was backgrounded — so the user never has to resize to fix it.
-    const rebuildAtlas = () => {
+    // WebGL glyph atlas can corrupt (garbled text a resize clears by rebuilding).
+    // clearTextureAtlas() rebuilds it, but each call costs a re-raster flash, so
+    // only fire on the rare events where corruption surfaces — not per output.
+    // Mid-session corruption is cleared manually via Ctrl/Cmd+Shift+L.
+    const clearAtlas = () => {
       if (document.visibilityState !== 'visible') return;
       try {
         terminal.clearTextureAtlas();
@@ -441,20 +440,20 @@ function TerminalPaneInner({
         // Renderer disposed or DOM renderer active — nothing to clear.
       }
     };
-    document.addEventListener('visibilitychange', rebuildAtlas);
-    window.addEventListener('focus', rebuildAtlas);
 
-    // Moving the window between monitors with different device-pixel-ratios
-    // desyncs the WebGL canvas dimensions (another garbled-text cause). Re-fit
-    // and rebuild the atlas when the DPR changes.
+    document.addEventListener('visibilitychange', clearAtlas);
+    window.addEventListener('focus', clearAtlas);
+
+    // DPR change (window moved to a monitor with a different pixel ratio)
+    // desyncs the WebGL canvas — re-fit, then rebuild the atlas.
     const dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     const onDprChange = () => {
       try {
         fitAddon.fit();
-        terminal.clearTextureAtlas();
       } catch {
-        // fit/clear may fail if the terminal is not visible.
+        // fit may fail if the terminal is not visible.
       }
+      clearAtlas();
     };
     dprQuery.addEventListener('change', onDprChange);
 
@@ -490,6 +489,17 @@ function TerminalPaneInner({
       // Ctrl+F — toggle search
       if (e.ctrlKey && !e.shiftKey && e.key === 'f' && e.type === 'keydown') {
         setShowSearch((prev) => !prev);
+        return false;
+      }
+      // Ctrl/Cmd+Shift+L — force WebGL atlas rebuild (clears garbled glyphs)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'L' && e.type === 'keydown') {
+        for (const { terminal: t } of terminalCache.values()) {
+          try {
+            t.clearTextureAtlas();
+          } catch {
+            // renderer disposed or DOM renderer active
+          }
+        }
         return false;
       }
       // Option+Arrow / Option+Delete — word navigation/deletion (Mac)
@@ -548,8 +558,8 @@ function TerminalPaneInner({
         scrollRafRef.current = null;
       }
       resizeObserver.disconnect();
-      document.removeEventListener('visibilitychange', rebuildAtlas);
-      window.removeEventListener('focus', rebuildAtlas);
+      document.removeEventListener('visibilitychange', clearAtlas);
+      window.removeEventListener('focus', clearAtlas);
       dprQuery.removeEventListener('change', onDprChange);
       unlisten?.();
 
