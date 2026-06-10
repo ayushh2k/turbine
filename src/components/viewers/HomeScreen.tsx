@@ -23,6 +23,7 @@ const QUICK_ACTIONS: {
   { id: 'task_board', label: 'Task Board', description: 'Manage tasks and agents', icon: '=' },
   { id: 'diff_viewer', label: 'Diff Viewer', description: 'Review code changes', icon: '+' },
   { id: 'swarm_panel', label: 'Swarm Panel', description: 'Monitor agent swarms', icon: '*' },
+  { id: 'log_dashboard', label: 'Log Dashboard', description: 'Stream and filter logs from multiple sources', icon: '~' },
 ];
 
 export function HomeScreen({ paneId, workspaceId, onFocus, onOpenPalette, onSelectType }: HomeScreenProps) {
