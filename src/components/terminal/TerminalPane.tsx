@@ -20,6 +20,7 @@ import { usePtyStatusStore } from '../../hooks/usePtyStatus';
 import { useWorkspaceStore } from '../../state/workspaceStore';
 import { useSearchStore } from '../../state/searchStore';
 import { spawnPaneSession } from '../../state/terminalSession';
+import { drainPtyOutput } from '../../utils/ptyData';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
@@ -33,6 +34,19 @@ interface CachedTerminal {
   searchAddon: SearchAddon;
 }
 const terminalCache = new Map<string, CachedTerminal>();
+
+// macOS 26.5's WKWebView garbles xterm's WebGL glyph atlas (xtermjs/xterm.js#5816).
+// Gate the WebGL renderer off there and let the DOM renderer take over until the
+// upstream fix ships. Resolved once at module load; terminals created before the
+// version arrives skip WebGL for that first frame only.
+let webglBroken = false;
+const webglGateReady = invoke<string | null>('get_macos_version')
+  .then((v) => {
+    if (!v) return;
+    const [maj = 0, min = 0] = v.split('.').map(Number);
+    webglBroken = maj > 26 || (maj === 26 && min >= 5);
+  })
+  .catch(() => {});
 
 // Detached node where we park xterm's DOM element during the gap between unmount and
 // remount, so the canvas / WebGL context isn't destroyed and we don't lose render state.
@@ -265,24 +279,29 @@ function TerminalPaneInner({
       terminal.open(containerRef.current);
 
       // Try WebGL addon, fall back silently to the DOM renderer.
-      try {
-        let webglAddon = new WebglAddon();
-        // GPU context loss (macOS backgrounding the GPU, memory pressure) kills
-        // the renderer. Recreate it instead of leaving the pane unaccelerated
-        // with a dead renderer (the old code only disposed it).
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose();
-          try {
-            webglAddon = new WebglAddon();
-            terminal.loadAddon(webglAddon);
-          } catch {
-            // WebGL gone for good — DOM renderer takes over.
-          }
-        });
-        terminal.loadAddon(webglAddon);
-      } catch {
-        // WebGL not available — DOM renderer is fine.
-      }
+      const capturedTerminal = terminal;
+      webglGateReady.then(() => {
+        if (webglBroken) return;
+        // Re-attach on every context loss, not just the first — each new addon
+        // needs its own handler or the second loss leaves a dead renderer.
+        const attachWebgl = () => {
+          const webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            webglAddon.dispose();
+            try {
+              attachWebgl();
+            } catch {
+              // WebGL gone for good — DOM renderer takes over.
+            }
+          });
+          capturedTerminal.loadAddon(webglAddon);
+        };
+        try {
+          attachWebgl();
+        } catch {
+          // WebGL not available or terminal disposed — DOM renderer is fine.
+        }
+      });
 
       // Image addon — Sixel + iTerm image protocol (IIP) support
       try {
@@ -356,39 +375,52 @@ function TerminalPaneInner({
     let lineBuffer = '';
     let unlisten: UnlistenFn | null = null;
     let disposed = false;
-    let lastSeq = 0;
     const appWindow = getCurrentWebviewWindow();
-    appWindow.listen<{ pane_id: string; data: number[]; seq: number }>('pty_output', (event) => {
-      if (event.payload.pane_id === paneId) {
-        // Deduplicate: skip events already seen (seq is monotonically increasing per pane)
-        if (event.payload.seq <= lastSeq) {
+    const drainOutput = () =>
+      drainPtyOutput(paneId, (bytes) => {
+        if (disposed) return;
+        // Wait for xterm to finish parsing before the next pull — gates the
+        // drain to the terminal's own throughput.
+        return new Promise<void>((resolve) => {
+          handleOutput(bytes, resolve);
+        });
+      });
+    const handleOutput = (bytes: Uint8Array, onParsed: () => void) => {
+      terminal.write(bytes, onParsed);
+
+      // Scan output for media URLs (line-buffered)
+      const text = new TextDecoder().decode(bytes);
+      appendOutput(text);
+      lineBuffer += text;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const media = detectMediaUrl(line);
+        if (media) {
+          setMediaItems((prev) => [...prev.slice(-4), media]); // keep last 5
+        }
+      }
+    };
+    appWindow
+      .listen<{ pane_id: string }>('pty_data_ready', (event) => {
+        if (event.payload.pane_id === paneId) {
+          drainOutput();
+        }
+      })
+      .then((fn) => {
+        if (disposed) {
+          fn();
           return;
         }
-        lastSeq = event.payload.seq;
+        unlisten = fn;
+        // Drain anything buffered before the listener attached (e.g. shell
+        // banner emitted between pty_spawn and listen resolving).
+        drainOutput();
+      });
 
-        const bytes = new Uint8Array(event.payload.data);
-        terminal.write(bytes);
-
-        // Scan output for media URLs (line-buffered)
-        const text = new TextDecoder().decode(bytes);
-        appendOutput(text);
-        lineBuffer += text;
-        const lines = lineBuffer.split('\n');
-        lineBuffer = lines.pop() ?? '';
-        for (const line of lines) {
-          const media = detectMediaUrl(line);
-          if (media) {
-            setMediaItems((prev) => [...prev.slice(-4), media]); // keep last 5
-          }
-        }
-      }
-    }).then((fn) => {
-      if (disposed) {
-        fn();
-        return;
-      }
-      unlisten = fn;
-    });
+    // Rescue path for lost data-ready signals (emitted pre-attach or dropped
+    // across a webview reload): an empty take is one cheap IPC roundtrip.
+    const drainKickTimer = window.setInterval(drainOutput, 2000);
 
     // Send keystrokes to PTY (or broadcast to multiple panes)
     const dataDisposable = terminal.onData((data) => {
@@ -550,6 +582,7 @@ function TerminalPaneInner({
 
     return () => {
       disposed = true;
+      window.clearInterval(drainKickTimer);
       dataDisposable.dispose();
       scrollDisposable.dispose();
       writeDisposable.dispose();

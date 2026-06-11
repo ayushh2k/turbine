@@ -52,8 +52,14 @@ export function LogVirtualList({
     [getRowHeight],
   );
 
+  // With no expanded rows every row is ROW_HEIGHT, so all offset math collapses
+  // to arithmetic — the O(n) scans below only run while something is expanded.
+  const uniformHeights = expandedIds.size === 0;
+
   // Total content height
-  const totalHeight = getOffsetForIndex(entries.length);
+  const totalHeight = uniformHeights
+    ? entries.length * ROW_HEIGHT
+    : getOffsetForIndex(entries.length);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
@@ -61,6 +67,14 @@ export function LogVirtualList({
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [entries.length, autoScroll]);
+
+  const handleScrollToBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    isUserScrolling.current = false;
+    onAutoScrollChange(true);
+  }, [onAutoScrollChange]);
 
   const handleScroll = useCallback(() => {
     const container = containerRef.current;
@@ -90,28 +104,35 @@ export function LogVirtualList({
   const scrollTop = container?.scrollTop ?? 0;
   const viewportHeight = container?.clientHeight ?? 600;
 
-  // Find start index by scanning offsets
-  let startIndex = 0;
-  let accumulatedHeight = 0;
-  for (let i = 0; i < entries.length; i++) {
-    const h = getRowHeight(i);
-    if (accumulatedHeight + h > scrollTop) {
-      startIndex = i;
-      break;
+  let startIndex: number;
+  let endIndex: number;
+  if (uniformHeights) {
+    startIndex = Math.min(entries.length, Math.floor(scrollTop / ROW_HEIGHT));
+    endIndex = Math.min(entries.length, startIndex + Math.ceil(viewportHeight / ROW_HEIGHT) + 1);
+  } else {
+    // Find start index by scanning offsets
+    startIndex = 0;
+    let accumulatedHeight = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const h = getRowHeight(i);
+      if (accumulatedHeight + h > scrollTop) {
+        startIndex = i;
+        break;
+      }
+      accumulatedHeight += h;
+      if (i === entries.length - 1) {
+        startIndex = entries.length;
+      }
     }
-    accumulatedHeight += h;
-    if (i === entries.length - 1) {
-      startIndex = entries.length;
-    }
-  }
 
-  // Find end index
-  let endIndex = startIndex;
-  let visibleHeight = 0;
-  for (let i = startIndex; i < entries.length; i++) {
-    visibleHeight += getRowHeight(i);
-    endIndex = i + 1;
-    if (visibleHeight >= viewportHeight) break;
+    // Find end index
+    endIndex = startIndex;
+    let visibleHeight = 0;
+    for (let i = startIndex; i < entries.length; i++) {
+      visibleHeight += getRowHeight(i);
+      endIndex = i + 1;
+      if (visibleHeight >= viewportHeight) break;
+    }
   }
 
   // Apply overscan
@@ -119,30 +140,44 @@ export function LogVirtualList({
   const overscanEnd = Math.min(entries.length, endIndex + OVERSCAN);
 
   // Calculate offset for the first rendered row
-  const offsetTop = getOffsetForIndex(overscanStart);
+  const offsetTop = uniformHeights
+    ? overscanStart * ROW_HEIGHT
+    : getOffsetForIndex(overscanStart);
 
   return (
-    <div
-      ref={containerRef}
-      className="log-virtual-list"
-      onScroll={handleScroll}
-    >
-      <div className="log-virtual-list__spacer" style={{ height: totalHeight }}>
-        <div
-          className="log-virtual-list__viewport"
-          style={{ transform: `translateY(${offsetTop}px)` }}
-        >
-          {entries.slice(overscanStart, overscanEnd).map((entry) => (
-            <LogEntryRow
-              key={entry.id}
-              entry={entry}
-              isExpanded={expandedIds.has(entry.id)}
-              onToggle={() => onToggleExpand(entry.id)}
-              timestampFormat={timestampFormat}
-            />
-          ))}
+    <div className="log-virtual-list__wrap">
+      <div
+        ref={containerRef}
+        className="log-virtual-list"
+        onScroll={handleScroll}
+      >
+        <div className="log-virtual-list__spacer" style={{ height: totalHeight }}>
+          <div
+            className="log-virtual-list__viewport"
+            style={{ transform: `translateY(${offsetTop}px)` }}
+          >
+            {entries.slice(overscanStart, overscanEnd).map((entry) => (
+              <LogEntryRow
+                key={entry.id}
+                entry={entry}
+                isExpanded={expandedIds.has(entry.id)}
+                onToggle={() => onToggleExpand(entry.id)}
+                timestampFormat={timestampFormat}
+              />
+            ))}
+          </div>
         </div>
       </div>
+      {!autoScroll && (
+        <button
+          type="button"
+          className="log-virtual-list__scroll-down"
+          onClick={handleScrollToBottom}
+          title="Scroll to bottom"
+        >
+          ↓
+        </button>
+      )}
     </div>
   );
 }

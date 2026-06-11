@@ -9,6 +9,28 @@ pub fn get_cli_args() -> Vec<String> {
     std::env::args().collect()
 }
 
+/// Returns the macOS product version (e.g. "26.5"), or None on other platforms.
+/// The webview's user agent freezes the OS version, so the frontend can't
+/// detect it without asking the host.
+#[tauri::command]
+pub fn get_macos_version() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let plist =
+            std::fs::read_to_string("/System/Library/CoreServices/SystemVersion.plist").ok()?;
+        let key = "<key>ProductVersion</key>";
+        let idx = plist.find(key)?;
+        let rest = &plist[idx + key.len()..];
+        let start = rest.find("<string>")? + "<string>".len();
+        let end = rest[start..].find("</string>")? + start;
+        Some(rest[start..end].trim().to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
 type DbState = Mutex<Connection>;
 
 // ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ interface LogDashboardStoreState {
   // Actions
   initDashboard: (paneId: string) => void;
   destroyDashboard: (paneId: string) => void;
-  addEntry: (paneId: string, entry: LogEntry) => void;
+  addEntries: (paneId: string, entries: LogEntry[]) => void;
   setFilter: (paneId: string, filter: Partial<FilterState>) => void;
   setPaused: (paneId: string, paused: boolean) => void;
   addSource: (paneId: string, source: LogSourceConfig) => boolean;
@@ -76,18 +76,20 @@ export const useLogDashboardStore = create<LogDashboardStoreState>((set, get) =>
     });
   },
 
-  addEntry: (paneId: string, entry: LogEntry) => {
+  addEntries: (paneId: string, entries: LogEntry[]) => {
+    if (entries.length === 0) return;
     set((state) => {
       const dashboards = new Map(state.dashboards);
       const pane = dashboards.get(paneId);
       if (!pane) return state;
 
-      // Push entry to ring buffer (always buffer, even when paused)
-      pane.buffer.push(entry);
+      // Push entries to ring buffer (always buffer, even when paused)
+      for (const entry of entries) {
+        pane.buffer.push(entry);
+      }
 
-      // Increment pausedEntryCount if paused
       const pausedEntryCount = pane.isPaused
-        ? pane.pausedEntryCount + 1
+        ? pane.pausedEntryCount + entries.length
         : pane.pausedEntryCount;
 
       dashboards.set(paneId, {

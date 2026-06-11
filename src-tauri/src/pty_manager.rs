@@ -1,9 +1,97 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::io::{Read, Write};
-use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
+
+/// Per-pane output buffer capacity. When full, the reader thread blocks until
+/// the frontend drains it, which in turn blocks the child process on the
+/// kernel PTY buffer — real backpressure with zero data loss.
+const OUTPUT_BUFFER_CAP: usize = 4 * 1024 * 1024;
+
+/// Pull-model output buffer. PTY output is NOT shipped through Tauri events:
+/// every event payload is injected as a JSON literal inside an
+/// evaluateJavaScript source string, so bulk data forces WebKit to parse and
+/// compile megabytes of script per second — that melts the webview under
+/// output floods. Instead the reader appends here and emits a tiny constant
+/// `pty_data_ready` signal; the frontend pulls bytes via `pty_take_output`,
+/// whose IPC response path carries raw bytes without JSON.
+pub struct PaneOutput {
+    buf: Mutex<Vec<u8>>,
+    drained: Condvar,
+    closed: AtomicBool,
+    /// Lossy buffers drop their oldest bytes instead of blocking the reader.
+    /// Used for log-dashboard panes, where only the newest output matters and
+    /// the producing child must never be throttled by a slow consumer.
+    lossy: bool,
+}
+
+impl PaneOutput {
+    fn new(lossy: bool) -> Self {
+        Self {
+            buf: Mutex::new(Vec::new()),
+            drained: Condvar::new(),
+            closed: AtomicBool::new(false),
+            lossy,
+        }
+    }
+
+    /// Appends bytes. Lossless buffers block while over capacity (PTY
+    /// backpressure); lossy buffers drop their oldest bytes instead.
+    /// Returns true when the buffer was empty before the append (the caller
+    /// should emit a data-ready signal) and false otherwise, or None when the
+    /// pane was closed while waiting.
+    fn append(&self, data: &[u8]) -> Option<bool> {
+        let mut buf = self.buf.lock().ok()?;
+        if self.lossy {
+            if self.closed.load(Ordering::Relaxed) {
+                return None;
+            }
+            let was_empty = buf.is_empty();
+            buf.extend_from_slice(data);
+            if buf.len() > OUTPUT_BUFFER_CAP {
+                // Trim to half capacity so the O(len) front-drain amortizes to
+                // ~one memmove per 2MB ingested instead of one per append.
+                let excess = buf.len() - OUTPUT_BUFFER_CAP / 2;
+                buf.drain(..excess);
+            }
+            return Some(was_empty);
+        }
+        while buf.len() >= OUTPUT_BUFFER_CAP {
+            if self.closed.load(Ordering::Relaxed) {
+                return None;
+            }
+            buf = self.drained.wait(buf).ok()?;
+        }
+        if self.closed.load(Ordering::Relaxed) {
+            return None;
+        }
+        let was_empty = buf.is_empty();
+        buf.extend_from_slice(data);
+        Some(was_empty)
+    }
+
+    fn take(&self) -> Vec<u8> {
+        let mut buf = match self.buf.lock() {
+            Ok(b) => b,
+            Err(_) => return Vec::new(),
+        };
+        let data = std::mem::take(&mut *buf);
+        self.drained.notify_all();
+        data
+    }
+
+    fn close(&self) {
+        self.closed.store(true, Ordering::Relaxed);
+        self.drained.notify_all();
+    }
+
+    fn is_empty(&self) -> bool {
+        self.buf.lock().map(|b| b.is_empty()).unwrap_or(true)
+    }
+}
 
 /// Holds the writer (for pty_write), the master (for pty_resize),
 /// and the child process handle (for pty_kill).
@@ -11,6 +99,7 @@ pub struct PtyEntry {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     child: Box<dyn portable_pty::Child + Send>,
+    output: Arc<PaneOutput>,
 }
 
 /// Managed state: a map from pane_id to its PtyEntry.
@@ -35,6 +124,7 @@ impl PtyManager {
     pub fn kill_by_pane_id(&self, pane_id: &str) -> Result<(), String> {
         let mut entries = self.entries.lock().map_err(|e| e.to_string())?;
         if let Some(mut entry) = entries.remove(pane_id) {
+            entry.output.close();
             entry.child.kill().map_err(|e| format!("Failed to kill PTY process: {e}"))?;
         }
         Ok(())
@@ -44,6 +134,7 @@ impl PtyManager {
     pub fn kill_all(&self) {
         if let Ok(mut entries) = self.entries.lock() {
             for (_, mut entry) in entries.drain() {
+                entry.output.close();
                 let _ = entry.child.kill();
             }
         }
@@ -51,13 +142,8 @@ impl PtyManager {
 }
 
 #[derive(Clone, Serialize)]
-struct PtyOutputPayload {
+struct PtyDataReadyPayload {
     pane_id: String,
-    data: Vec<u8>,
-    /// Monotonically increasing sequence number per reader thread.
-    /// Allows the frontend to deduplicate events when the Tauri event
-    /// system delivers the same emission more than once.
-    seq: u64,
 }
 
 #[derive(Clone, Serialize)]
@@ -245,6 +331,10 @@ pub fn spawn_pty_internal(
         .take_writer()
         .map_err(|e| format!("Failed to take PTY writer: {e}"))?;
 
+    // Log-dashboard panes only display the newest output, so their buffers drop
+    // oldest bytes rather than throttling the child via backpressure.
+    let output = Arc::new(PaneOutput::new(pane_id.starts_with("log_")));
+
     // Store entry in managed state
     {
         let mut entries = pty_mgr.entries.lock().map_err(|e| e.to_string())?;
@@ -254,23 +344,34 @@ pub fn spawn_pty_internal(
                 writer,
                 master: pair.master,
                 child,
+                output: Arc::clone(&output),
             },
         );
     }
 
-    // Spawn reader thread for streaming output
-    let reader_pane_id = pane_id.clone();
+    // Reader thread: appends to the pane's pull buffer and signals readiness.
+    // The empty→non-empty transition is the only emit, so the signal rate can
+    // never exceed the frontend's drain rate — floods self-pace with no timers.
     let handle = app_handle.clone();
+    let reader_pane_id = pane_id.clone();
     std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
-        let mut seq: u64 = 0;
-        // Throttle attention events: at most one per BEL_THROTTLE per pane.
         const BEL_THROTTLE: std::time::Duration = std::time::Duration::from_secs(3);
+        let mut buf = [0u8; 65536];
         let mut last_bel: Option<std::time::Instant> = None;
         loop {
             match reader.read(&mut buf) {
-                Ok(0) => {
-                    // EOF — process exited; harvest exit code from child
+                Ok(0) | Err(_) => {
+                    // EOF or read failure — process exited. Signal any undrained
+                    // tail bytes before announcing the exit.
+                    if !output.is_empty() {
+                        let _ = handle.emit_to(
+                            "main",
+                            "pty_data_ready",
+                            PtyDataReadyPayload {
+                                pane_id: reader_pane_id.clone(),
+                            },
+                        );
+                    }
                     let exit_code = harvest_exit_code(&handle, &reader_pane_id);
                     let _ = handle.emit_to(
                         "main",
@@ -283,7 +384,6 @@ pub fn spawn_pty_internal(
                     break;
                 }
                 Ok(n) => {
-                    seq += 1;
                     let chunk = &buf[..n];
                     if chunk.contains(&0x07) {
                         let now = std::time::Instant::now();
@@ -301,34 +401,40 @@ pub fn spawn_pty_internal(
                             );
                         }
                     }
-                    let _ = handle.emit_to(
-                        "main",
-                        "pty_output",
-                        PtyOutputPayload {
-                            pane_id: reader_pane_id.clone(),
-                            data: chunk.to_vec(),
-                            seq,
-                        },
-                    );
-                }
-                Err(_) => {
-                    // Read failure — harvest exit code and emit exit event
-                    let exit_code = harvest_exit_code(&handle, &reader_pane_id);
-                    let _ = handle.emit_to(
-                        "main",
-                        "pty_exit",
-                        PtyExitPayload {
-                            pane_id: reader_pane_id.clone(),
-                            exit_code,
-                        },
-                    );
-                    break;
+                    match output.append(chunk) {
+                        Some(true) => {
+                            let _ = handle.emit_to(
+                                "main",
+                                "pty_data_ready",
+                                PtyDataReadyPayload {
+                                    pane_id: reader_pane_id.clone(),
+                                },
+                            );
+                        }
+                        Some(false) => {}
+                        None => break, // pane closed while waiting for drain
+                    }
                 }
             }
         }
     });
 
     Ok(true)
+}
+
+/// Drain and return the pending output bytes for a pane. The raw-byte IPC
+/// response path avoids JSON entirely — see `PaneOutput` for why.
+#[tauri::command]
+pub fn pty_take_output(
+    pane_id: String,
+    pty_state: State<'_, PtyManager>,
+) -> Result<tauri::ipc::Response, String> {
+    let output = {
+        let entries = pty_state.entries.lock().map_err(|e| e.to_string())?;
+        entries.get(&pane_id).map(|e| Arc::clone(&e.output))
+    };
+    let data = output.map(|o| o.take()).unwrap_or_default();
+    Ok(tauri::ipc::Response::new(data))
 }
 
 /// Spawn a new PTY process for the given pane.

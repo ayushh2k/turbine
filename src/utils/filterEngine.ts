@@ -18,43 +18,34 @@ export function validateRegex(pattern: string): { valid: boolean; error?: string
 }
 
 /**
- * Determines whether a single LogEntry passes all active filter criteria.
- *
- * AND logic:
- * - If regex is set (non-null and non-empty), the entry's message must match it
- * - If levels set is non-empty, the entry's level must be in the set
- * - If sources set is non-empty, the entry's sourceId must be in the set
- *
- * When all criteria are null/empty, the entry always matches.
+ * Builds a predicate applying all active filter criteria (AND logic).
+ * The regex is compiled once here — compiling it per entry dominates the cost
+ * of filtering large buffers.
  */
-export function matchesFilter(entry: LogEntry, filters: FilterState): boolean {
-  // Regex filter: skip if null or empty string
+export function buildFilterPredicate(filters: FilterState): (entry: LogEntry) => boolean {
+  let re: RegExp | null = null;
   if (filters.regex != null && filters.regex !== '') {
     try {
-      const re = new RegExp(filters.regex);
-      if (!re.test(entry.message)) {
-        return false;
-      }
+      re = new RegExp(filters.regex);
     } catch {
       // Invalid regex — skip regex filtering (show entry)
     }
   }
+  const { levels, sources } = filters;
 
-  // Level filter: skip if empty set (show all levels)
-  if (filters.levels.size > 0) {
-    if (!filters.levels.has(entry.level)) {
-      return false;
-    }
-  }
+  return (entry: LogEntry): boolean => {
+    if (re && !re.test(entry.message)) return false;
+    if (levels.size > 0 && !levels.has(entry.level)) return false;
+    if (sources.size > 0 && !sources.has(entry.sourceId)) return false;
+    return true;
+  };
+}
 
-  // Source filter: skip if empty set (show all sources)
-  if (filters.sources.size > 0) {
-    if (!filters.sources.has(entry.sourceId)) {
-      return false;
-    }
-  }
-
-  return true;
+/**
+ * Determines whether a single LogEntry passes all active filter criteria.
+ */
+export function matchesFilter(entry: LogEntry, filters: FilterState): boolean {
+  return buildFilterPredicate(filters)(entry);
 }
 
 /**
@@ -62,5 +53,5 @@ export function matchesFilter(entry: LogEntry, filters: FilterState): boolean {
  * Returns only entries that pass all active filters.
  */
 export function applyFilters(entries: LogEntry[], filters: FilterState): LogEntry[] {
-  return entries.filter((entry) => matchesFilter(entry, filters));
+  return entries.filter(buildFilterPredicate(filters));
 }

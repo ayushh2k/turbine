@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   LogSourceConfig,
+  LogSourceType,
+  LogSourceParams,
   LocalFileParams,
   DockerContainerParams,
   SshRemoteParams,
@@ -8,6 +10,47 @@ import type {
   SystemdJournalParams,
   CustomCommandParams,
 } from '../types';
+
+/** Wire shape of a log source as the Rust backend stores it (snake_case, params as JSON string). */
+export interface RustLogSourceConfig {
+  id: string;
+  pane_id: string;
+  source_type: string;
+  display_name: string;
+  color: string | null;
+  params_json: string;
+  sort_order: number;
+}
+
+export function toRustLogSource(source: LogSourceConfig): RustLogSourceConfig {
+  return {
+    id: source.id,
+    pane_id: source.paneId,
+    source_type: source.sourceType,
+    display_name: source.displayName,
+    color: source.color,
+    params_json: JSON.stringify(source.params),
+    sort_order: source.sortOrder,
+  };
+}
+
+export function fromRustLogSource(row: RustLogSourceConfig): LogSourceConfig {
+  let params: LogSourceParams;
+  try {
+    params = JSON.parse(row.params_json) as LogSourceParams;
+  } catch {
+    params = {} as LogSourceParams;
+  }
+  return {
+    id: row.id,
+    paneId: row.pane_id,
+    sourceType: row.source_type as LogSourceType,
+    displayName: row.display_name,
+    color: row.color,
+    params,
+    sortOrder: row.sort_order,
+  };
+}
 
 /**
  * Generates the shell command string for a given log source configuration.
@@ -22,10 +65,9 @@ export function generateCommand(source: LogSourceConfig): string {
 
     case 'docker_container': {
       const params = source.params as DockerContainerParams;
-      const parts = ['docker', 'logs', '-f'];
-      if (params.tail != null) {
-        parts.push('--tail', String(params.tail));
-      }
+      // Default --tail: without it docker dumps the container's entire log
+      // history at full speed, which floods the event pipeline.
+      const parts = ['docker', 'logs', '-f', '--tail', String(params.tail ?? 1000)];
       parts.push(params.containerNameOrId);
       return parts.join(' ');
     }
@@ -54,9 +96,7 @@ export function generateCommand(source: LogSourceConfig): string {
       if (params.containerName != null) {
         parts.push('-c', params.containerName);
       }
-      if (params.tail != null) {
-        parts.push(`--tail=${params.tail}`);
-      }
+      parts.push(`--tail=${params.tail ?? 1000}`);
       return parts.join(' ');
     }
 

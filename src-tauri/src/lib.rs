@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod debug_bridge;
 pub mod file_ops;
 pub mod pty_manager;
 pub mod swarm_engine;
@@ -11,12 +12,17 @@ use tauri::{Manager, RunEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_notification::init());
+
+    builder
         .setup(|app| {
+            // Dev-only automation bridge (no-op in release builds).
+            debug_bridge::start(app.handle().clone());
+
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -45,6 +51,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_cli_args,
+            commands::get_macos_version,
             commands::save_workspace,
             commands::load_workspaces,
             commands::delete_workspace,
@@ -78,6 +85,8 @@ pub fn run() {
             commands::save_theme,
             commands::load_themes,
             pty_manager::pty_spawn,
+            pty_manager::pty_take_output,
+            debug_bridge::debug_report,
             pty_manager::pty_write,
             pty_manager::pty_resize,
             pty_manager::pty_kill,

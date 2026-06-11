@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import type { SwarmRun, SwarmAgent, MailboxMessage, SwarmStatus, WorkflowStep, Task } from '../types';
+import { drainPtyOutput } from '../utils/ptyData';
 
 const OUTPUT_BUFFER_MAX = 10 * 1024; // 10KB rolling buffer per agent
 let listenerInitPromise: Promise<void> | null = null;
@@ -58,7 +59,26 @@ interface SwarmState {
   loadWorkflowSteps: (runId: string) => Promise<void>;
 }
 
-export const useSwarmStore = create<SwarmState>((set, get) => ({
+export const useSwarmStore = create<SwarmState>((set, get) => {
+  const appendSwarmOutput = (pane_id: string, text: string) => {
+    set((s) => {
+      const next = new Map(s.outputBuffers);
+      const existing = next.get(pane_id) ?? '';
+      let updated = existing + text;
+      // Rolling buffer: keep last OUTPUT_BUFFER_MAX chars
+      if (updated.length > OUTPUT_BUFFER_MAX) {
+        updated = updated.slice(updated.length - OUTPUT_BUFFER_MAX);
+      }
+      next.set(pane_id, updated);
+      return { outputBuffers: next };
+    });
+  };
+  const drainSwarmOutput = (pane_id: string) =>
+    drainPtyOutput(pane_id, (bytes) => {
+      appendSwarmOutput(pane_id, new TextDecoder().decode(bytes));
+    });
+
+  return {
   runs: [],
   messages: new Map(),
   agents: new Map(),
@@ -82,22 +102,10 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
 
       // Listen for PTY output from swarm agents
       const appWindow = getCurrentWebviewWindow();
-      const unlisten1 = await appWindow.listen<{ pane_id: string; data: number[] }>('pty_output', (event) => {
-        const { pane_id, data } = event.payload;
+      const unlisten1 = await appWindow.listen<{ pane_id: string }>('pty_data_ready', (event) => {
+        const { pane_id } = event.payload;
         if (!pane_id.startsWith('swarm-')) return;
-
-        const text = new TextDecoder().decode(new Uint8Array(data));
-        set((s) => {
-          const next = new Map(s.outputBuffers);
-          const existing = next.get(pane_id) ?? '';
-          let updated = existing + text;
-          // Rolling buffer: keep last OUTPUT_BUFFER_MAX chars
-          if (updated.length > OUTPUT_BUFFER_MAX) {
-            updated = updated.slice(updated.length - OUTPUT_BUFFER_MAX);
-          }
-          next.set(pane_id, updated);
-          return { outputBuffers: next };
-        });
+        drainSwarmOutput(pane_id);
       });
       unlisteners.push(unlisten1);
 
@@ -366,6 +374,10 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
       taskDescription: taskDescription ?? null,
     });
 
+    // Kick a drain in case the agent's first output landed before any
+    // data-ready signal could be observed.
+    drainSwarmOutput(agent.pane_id);
+
     set((s) => {
       const nextAgents = new Map(s.agents);
       const list = nextAgents.get(runId) ?? [];
@@ -441,4 +453,5 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
       console.error('Failed to load workflow steps', e);
     }
   },
-}));
+  };
+});

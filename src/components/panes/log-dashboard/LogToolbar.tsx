@@ -6,6 +6,47 @@ import { validateRegex } from '../../../utils/filterEngine';
 
 const LOG_LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug', 'trace'];
 
+/** Wire shape of a filter preset as the Rust backend stores it. */
+interface RustFilterPreset {
+  id: string;
+  workspace_id: string;
+  name: string;
+  regex_pattern: string | null;
+  levels_json: string;
+  sources_json: string;
+}
+
+function parseJsonArray(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function fromRustPreset(row: RustFilterPreset): FilterPreset {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    regexPattern: row.regex_pattern,
+    levels: parseJsonArray(row.levels_json) as LogLevel[],
+    sources: parseJsonArray(row.sources_json),
+  };
+}
+
+function toRustPreset(preset: FilterPreset): RustFilterPreset {
+  return {
+    id: preset.id,
+    workspace_id: preset.workspaceId,
+    name: preset.name,
+    regex_pattern: preset.regexPattern,
+    levels_json: JSON.stringify(preset.levels),
+    sources_json: JSON.stringify(preset.sources),
+  };
+}
+
 interface LogToolbarProps {
   paneId: string;
   workspaceId: string;
@@ -29,8 +70,8 @@ export function LogToolbar({ paneId, workspaceId, onOpenSourcePanel }: LogToolba
 
   // Load presets on mount
   useEffect(() => {
-    invoke<FilterPreset[]>('load_filter_presets', { workspaceId })
-      .then(setPresets)
+    invoke<RustFilterPreset[]>('load_filter_presets', { workspaceId })
+      .then((rows) => setPresets(rows.map(fromRustPreset)))
       .catch(() => {});
   }, [workspaceId]);
 
@@ -113,7 +154,7 @@ export function LogToolbar({ paneId, workspaceId, onOpenSourcePanel }: LogToolba
     };
 
     try {
-      await invoke('save_filter_preset', { preset });
+      await invoke('save_filter_preset', { preset: toRustPreset(preset) });
       setPresets((prev) => [...prev, preset]);
     } catch {
       // Failed to save — silently ignore

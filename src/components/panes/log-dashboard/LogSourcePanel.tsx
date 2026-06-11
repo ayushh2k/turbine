@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { LogSourceConfig, LogSourceType, SourceStatus } from '../../../types';
 import { useLogDashboardStore } from '../../../state/logDashboardStore';
+import { toRustLogSource } from '../../../utils/logStreamManager';
 
 const SOURCE_TYPES: { value: LogSourceType; label: string }[] = [
   { value: 'local_file', label: 'Local File' },
@@ -132,7 +133,7 @@ export function LogSourcePanel({
     if (added) {
       // Persist sources
       const updatedSources = [...sources, newSource];
-      invoke('save_log_sources', { paneId, sources: updatedSources }).catch(() => {});
+      invoke('save_log_sources', { paneId, sources: updatedSources.map(toRustLogSource) }).catch(() => {});
       resetForm();
     }
   }, [paneId, sourceType, displayName, color, buildParams, sources, addSource, isFormValid, isAtLimit, resetForm]);
@@ -141,7 +142,7 @@ export function LogSourcePanel({
     async (sourceId: string) => {
       removeSource(paneId, sourceId);
       const updatedSources = sources.filter((s) => s.id !== sourceId);
-      invoke('save_log_sources', { paneId, sources: updatedSources }).catch(() => {});
+      invoke('save_log_sources', { paneId, sources: updatedSources.map(toRustLogSource) }).catch(() => {});
     },
     [paneId, sources, removeSource],
   );
