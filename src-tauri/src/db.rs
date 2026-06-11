@@ -29,7 +29,7 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS panes (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-            pane_type TEXT NOT NULL CHECK(pane_type IN ('home', 'terminal', 'code_viewer', 'media_viewer', 'task_board', 'diff_viewer', 'swarm_panel')),
+            pane_type TEXT NOT NULL,
             working_directory TEXT,
             startup_command TEXT,
             auto_launch INTEGER NOT NULL DEFAULT 0,
@@ -348,6 +348,40 @@ fn run_migrations(conn: &Connection) -> SqliteResult<()> {
             ALTER TABLE panes ADD COLUMN label TEXT;
             ALTER TABLE panes ADD COLUMN title TEXT;
             ALTER TABLE panes ADD COLUMN task_id TEXT;
+            "
+        )?;
+    }
+
+    // Migration 9: Remove CHECK constraint on panes.pane_type (recreate table).
+    // The old constraint rejects newer pane types (e.g. log_dashboard), which
+    // made save_workspace fail silently and panes resurrect with stale types
+    // after a restart.
+    let panes_sql: String = conn
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='panes'")?
+        .query_row([], |row| row.get::<_, String>(0))
+        .unwrap_or_default();
+
+    if panes_sql.contains("CHECK") {
+        conn.execute_batch(
+            "
+            CREATE TABLE panes_new (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                pane_type TEXT NOT NULL,
+                working_directory TEXT,
+                startup_command TEXT,
+                auto_launch INTEGER NOT NULL DEFAULT 0,
+                env_vars_json TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                label TEXT,
+                title TEXT,
+                task_id TEXT
+            );
+            INSERT INTO panes_new (id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, created_at, label, title, task_id)
+                SELECT id, workspace_id, pane_type, working_directory, startup_command, auto_launch, env_vars_json, created_at, label, title, task_id FROM panes;
+            DROP TABLE panes;
+            ALTER TABLE panes_new RENAME TO panes;
+            CREATE INDEX IF NOT EXISTS idx_panes_workspace ON panes(workspace_id);
             "
         )?;
     }
