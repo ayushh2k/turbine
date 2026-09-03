@@ -1,0 +1,21 @@
+{
+  "name": "turbine-signaling-service",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Ephemeral Vercel Serverless Signaling for Turbine P2P WebRTC",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vercel": "^39.0.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

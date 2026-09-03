@@ -30,6 +30,8 @@ import { NotificationCenter } from './components/overlays/NotificationCenter';
 import { SearchBar } from './components/overlays/SearchBar';
 import { BroadcastOverlay } from './components/terminal/BroadcastOverlay';
 import { ShortcutSheet } from './components/overlays/ShortcutSheet';
+import { CompanionModal } from './components/overlays/CompanionModal';
+import { p2pBridge } from './services/p2pBridge';
 import './App.css';
 
 function replaceLeafPaneId(node: import('./types').LayoutNode, fromId: string, toId: string): import('./types').LayoutNode {
@@ -50,6 +52,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHome, setShowHome] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCompanion, setShowCompanion] = useState(false);
+  const [companionPeersCount, setCompanionPeersCount] = useState(0);
   const [activePanel, setActivePanel] = useState<SidePanelId | null>(null);
 
   const handlePanelToggle = useCallback((panel: SidePanelId) => {
@@ -161,6 +165,24 @@ function App() {
   useEffect(() => {
     setShowHome(false);
   }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    const updateCount = () => {
+      setCompanionPeersCount(p2pBridge.getPeers().length);
+    };
+    const unsubP2p = p2pBridge.onPeersChange(updateCount);
+    return () => {
+      unsubP2p();
+    };
+  }, []);
+
+  useEffect(() => {
+    p2pBridge.setActivePaneId(focusedPaneId);
+  }, [focusedPaneId]);
+
+  useEffect(() => {
+    p2pBridge.syncFullState();
+  }, [workspaces, activeWorkspaceId]);
 
   const lastFocusedByWsRef = useRef<Record<string, string>>({});
   useEffect(() => {
@@ -840,6 +862,8 @@ function App() {
             activePanel={activePanel}
             onPanelToggle={handlePanelToggle}
             onOpenSettings={() => setShowSettings(true)}
+            onOpenCompanion={() => setShowCompanion(true)}
+            companionConnectedCount={companionPeersCount}
             broadcastMode={broadcastMode}
             onToggleBroadcast={toggleBroadcast}
           />
@@ -910,6 +934,11 @@ function App() {
           <ShortcutSheet onClose={() => setShowShortcuts(false)} />
         )}
 
+        <CompanionModal
+          isOpen={showCompanion}
+          onClose={() => setShowCompanion(false)}
+        />
+
         {broadcastMode && (
           <BroadcastOverlay focusedPaneId={focusedPaneId} />
         )}
@@ -919,6 +948,7 @@ function App() {
           broadcastMode={broadcastMode}
           onOpenPalette={() => setShowPalette(true)}
           onOpenShortcuts={() => setShowShortcuts(true)}
+          onOpenCompanion={() => setShowCompanion(true)}
         />
 
         {contextMenuElement}

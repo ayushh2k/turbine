@@ -10,6 +10,7 @@ interface StatusBarProps {
   broadcastMode: boolean;
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
+  onOpenCompanion?: () => void;
 }
 
 export function StatusBar({
@@ -17,6 +18,7 @@ export function StatusBar({
   broadcastMode,
   onOpenPalette,
   onOpenShortcuts,
+  onOpenCompanion,
 }: StatusBarProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -102,6 +104,16 @@ export function StatusBar({
             <span className="status-bar__running-dot" />
             {runningCount} running
           </span>
+        )}
+        {onOpenCompanion && (
+          <button
+            type="button"
+            className="status-bar__item status-bar__item--button"
+            onClick={onOpenCompanion}
+            title="Mobile Companion (Connect phone)"
+          >
+            <span>📱 Companion</span>
+          </button>
         )}
         <button
           type="button"

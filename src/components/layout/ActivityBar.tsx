@@ -6,6 +6,8 @@ interface ActivityBarProps {
   activePanel: SidePanelId | null;
   onPanelToggle: (panel: SidePanelId) => void;
   onOpenSettings: () => void;
+  onOpenCompanion?: () => void;
+  companionConnectedCount?: number;
   broadcastMode: boolean;
   onToggleBroadcast: () => void;
 }
@@ -54,6 +56,13 @@ const SettingsIcon = () => (
   </svg>
 );
 
+const CompanionIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+    <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5"/>
+  </svg>
+);
+
 interface BarItemProps {
   icon: React.ReactNode;
   label: string;
@@ -91,7 +100,15 @@ const PANELS: { id: SidePanelId; label: string; description: string; Icon: React
   { id: 'swarm', label: 'Swarm', description: 'Monitor agent swarm runs', Icon: SwarmIcon },
 ];
 
-export function ActivityBar({ activePanel, onPanelToggle, onOpenSettings, broadcastMode, onToggleBroadcast }: ActivityBarProps) {
+export function ActivityBar({
+  activePanel,
+  onPanelToggle,
+  onOpenSettings,
+  onOpenCompanion,
+  companionConnectedCount,
+  broadcastMode,
+  onToggleBroadcast,
+}: ActivityBarProps) {
   return (
     <div className="activity-bar">
       <div className="activity-bar__top">
@@ -107,6 +124,19 @@ export function ActivityBar({ activePanel, onPanelToggle, onOpenSettings, broadc
         ))}
       </div>
       <div className="activity-bar__bottom">
+        {onOpenCompanion && (
+          <BarItem
+            icon={<CompanionIcon />}
+            label="Mobile Companion"
+            description={
+              companionConnectedCount
+                ? `${companionConnectedCount} phone connected`
+                : 'Connect React Native companion'
+            }
+            highlight={Boolean(companionConnectedCount && companionConnectedCount > 0)}
+            onClick={onOpenCompanion}
+          />
+        )}
         <BarItem
           icon={<BroadcastIcon />}
           label="Broadcast"

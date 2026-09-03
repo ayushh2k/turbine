@@ -1,0 +1,10 @@
+services:
+  turbine-relay:
+    build: .
+    container_name: turbine-relay
+    ports:
+      - "4448:4448"
+    environment:
+      - PORT=4448
+      - HOST=0.0.0.0
+    restart: unless-stopped

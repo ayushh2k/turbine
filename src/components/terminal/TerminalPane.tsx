@@ -18,6 +18,8 @@ import { MediaOverlay, detectMediaUrl, type MediaItem } from '../viewers/MediaOv
 import { TerminalContextMenu } from './TerminalContextMenu';
 import { usePtyStatusStore } from '../../hooks/usePtyStatus';
 import { useWorkspaceStore } from '../../state/workspaceStore';
+import { relayBridge } from '../../services/relayBridge';
+import { p2pBridge } from '../../services/p2pBridge';
 import { useSearchStore } from '../../state/searchStore';
 import { spawnPaneSession } from '../../state/terminalSession';
 import { drainPtyOutput } from '../../utils/ptyData';
@@ -390,6 +392,8 @@ function TerminalPaneInner({
 
       // Scan output for media URLs (line-buffered)
       const text = new TextDecoder().decode(bytes);
+      relayBridge.sendTerminalOutput(paneId, text);
+      p2pBridge.sendTerminalOutput(paneId, text);
       appendOutput(text);
       lineBuffer += text;
       const lines = lineBuffer.split('\n');
