@@ -35,3 +35,10 @@ Thumbs.db
 
 # ── Test output ───────────────────────────────────────────────────────────────
 coverage/
+
+# ── Subprojects ───────────────────────────────────────────────────────────────
+mobile/node_modules/
+mobile/.expo/
+signaling/node_modules/
+signaling/.vercel/
+relay/node_modules/

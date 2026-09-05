@@ -1,0 +1,29 @@
+# Fly.io configuration for Turbine Relay Server
+# Deploy with: cd relay && fly launch (or fly deploy)
+
+app = "turbine-relay"
+primary_region = "bom" # Mumbai (or change to 'del', 'sin', 'sjc', 'iad', 'lhr')
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4448"
+  HOST = "0.0.0.0"
+
+[http_service]
+  internal_port = 4448
+  force_https = true
+  auto_stop_machines = "off"   # Keep 1 machine always warm for instant WebSocket connection
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 1000
+    soft_limit = 800
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

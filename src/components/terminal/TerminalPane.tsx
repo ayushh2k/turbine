@@ -18,6 +18,7 @@ import { MediaOverlay, detectMediaUrl, type MediaItem } from '../viewers/MediaOv
 import { TerminalContextMenu } from './TerminalContextMenu';
 import { usePtyStatusStore } from '../../hooks/usePtyStatus';
 import { useWorkspaceStore } from '../../state/workspaceStore';
+import { p2pBridge } from '../../services/p2pBridge';
 import { useSearchStore } from '../../state/searchStore';
 import { spawnPaneSession } from '../../state/terminalSession';
 import { drainPtyOutput } from '../../utils/ptyData';
@@ -335,6 +336,7 @@ function TerminalPaneInner({
       // fit may fail if container has zero dimensions; ResizeObserver below will retry.
     }
     setPaneSize(paneId, terminal.cols, terminal.rows);
+    p2pBridge.setTerminalDimensions(paneId, terminal.cols, terminal.rows);
 
     if (!isCacheHit) {
       setStatus(paneId, 'running', null);
@@ -390,6 +392,7 @@ function TerminalPaneInner({
 
       // Scan output for media URLs (line-buffered)
       const text = new TextDecoder().decode(bytes);
+      p2pBridge.sendTerminalOutput(paneId, text);
       appendOutput(text);
       lineBuffer += text;
       const lines = lineBuffer.split('\n');
@@ -449,6 +452,7 @@ function TerminalPaneInner({
       try {
         fitAddon.fit();
         setPaneSize(paneId, terminal.cols, terminal.rows);
+        p2pBridge.setTerminalDimensions(paneId, terminal.cols, terminal.rows);
         invoke('pty_resize', {
           paneId,
           cols: terminal.cols,

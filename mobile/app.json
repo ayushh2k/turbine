@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Turbine Companion",
+    "slug": "turbine-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#050c16"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.turbine.companion",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#050c16"
+      },
+      "package": "com.turbine.companion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "21560b3a-b803-4614-8628-17f66309b0f2"
+      }
+    },
+    "owner": "owocorp"
+  }
+}
