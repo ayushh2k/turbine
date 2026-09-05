@@ -17,17 +17,36 @@ export class SocketService {
   public gitDiff: string = '';
   public focusedPaneId: string | null = null;
   public paneOutputs: Map<string, string> = new Map();
+  public paneDimensions: Map<string, { cols: number; rows: number }> = new Map();
   public currentServerUrl: string = 'https://signaling-taupe.vercel.app';
   public connectionMode: 'p2p' = 'p2p';
   public region: string = 'P2P Direct (DTLS Encrypted)';
   public latencyMs: number | null = null;
 
   private listeners: Set<Listener> = new Set();
+  private outputListeners: Set<(paneId: string, data: string) => void> = new Set();
+  private resizeListeners: Set<(paneId: string, cols: number, rows: number) => void> = new Set();
+  private syncListeners: Set<(paneId: string, cols: number, rows: number, buffer: string) => void> = new Set();
   private pingInterval: ReturnType<typeof setInterval> | null = null;
 
   public subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  public onTerminalOutput(fn: (paneId: string, data: string) => void): () => void {
+    this.outputListeners.add(fn);
+    return () => this.outputListeners.delete(fn);
+  }
+
+  public onTerminalResize(fn: (paneId: string, cols: number, rows: number) => void): () => void {
+    this.resizeListeners.add(fn);
+    return () => this.resizeListeners.delete(fn);
+  }
+
+  public onTerminalSync(fn: (paneId: string, cols: number, rows: number, buffer: string) => void): () => void {
+    this.syncListeners.add(fn);
+    return () => this.syncListeners.delete(fn);
   }
 
   public notify() {
@@ -253,6 +272,14 @@ export class SocketService {
     return this.paneOutputs.get(paneId) || '';
   }
 
+  public getPaneDimensions(paneId: string): { cols: number; rows: number } | undefined {
+    return this.paneDimensions.get(paneId);
+  }
+
+  public requestTerminalSync(paneId: string) {
+    this.send('terminal:request_sync', { paneId });
+  }
+
   public clearPaneOutput(paneId: string) {
     this.paneOutputs.set(paneId, '');
     this.notify();
@@ -290,8 +317,50 @@ export class SocketService {
           const { paneId, data } = msg.payload || {};
           if (paneId && data) {
             const current = this.paneOutputs.get(paneId) || '';
-            const updated = (current + data).slice(-100000);
+            let updated: string;
+            if (data.includes('\x1b[2J') || data.includes('\x1b[3J') || data.includes('\x1bc')) {
+              const clearIdx = Math.max(
+                data.lastIndexOf('\x1b[2J'),
+                data.lastIndexOf('\x1b[3J'),
+                data.lastIndexOf('\x1bc')
+              );
+              updated = data.substring(clearIdx);
+            } else {
+              updated = (current + data).slice(-100000);
+            }
             this.paneOutputs.set(paneId, updated);
+            this.outputListeners.forEach((fn) => {
+              try { fn(paneId, data); } catch {}
+            });
+            this.notify();
+          }
+          break;
+        }
+
+        case 'terminal:resize': {
+          const { paneId, cols, rows } = msg.payload || {};
+          if (paneId && cols && rows) {
+            this.paneDimensions.set(paneId, { cols, rows });
+            this.resizeListeners.forEach((fn) => {
+              try { fn(paneId, cols, rows); } catch {}
+            });
+            this.notify();
+          }
+          break;
+        }
+
+        case 'terminal:sync': {
+          const { paneId, cols, rows, buffer } = msg.payload || {};
+          if (paneId) {
+            if (cols && rows) {
+              this.paneDimensions.set(paneId, { cols, rows });
+            }
+            if (typeof buffer === 'string') {
+              this.paneOutputs.set(paneId, buffer);
+            }
+            this.syncListeners.forEach((fn) => {
+              try { fn(paneId, cols || 80, rows || 24, buffer || ''); } catch {}
+            });
             this.notify();
           }
           break;

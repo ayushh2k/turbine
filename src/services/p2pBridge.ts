@@ -11,6 +11,22 @@ type SessionListener = (session: RelaySessionInfo | null) => void;
 const DEFAULT_STUN_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:openrelay.metered.ca:80' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ];
 
 export class P2PBridge {
@@ -24,6 +40,8 @@ export class P2PBridge {
   private pollTimer: number | null = null;
   private pingTimer: number | null = null;
   private latencyMs: number | null = null;
+  private terminalBuffers = new Map<string, string>();
+  private terminalDimensions = new Map<string, { cols: number; rows: number }>();
 
   private statusListeners = new Set<StatusListener>();
   private peerListeners = new Set<PeerListener>();
@@ -268,7 +286,24 @@ export class P2PBridge {
     }
   }
 
+  public setTerminalDimensions(paneId: string, cols: number, rows: number) {
+    this.terminalDimensions.set(paneId, { cols, rows });
+    this.send('terminal:resize', { paneId, cols, rows });
+  }
+
+  public getTerminalDimensions(paneId: string): { cols: number; rows: number } | undefined {
+    return this.terminalDimensions.get(paneId);
+  }
+
+  public getReplayBuffer(paneId: string): string {
+    return this.terminalBuffers.get(paneId) || '';
+  }
+
   public sendTerminalOutput(paneId: string, data: string) {
+    const cur = this.terminalBuffers.get(paneId) || '';
+    const updated = (cur + data).slice(-256 * 1024);
+    this.terminalBuffers.set(paneId, updated);
+
     if (this.peers.length === 0) return;
     this.send('terminal:output', { paneId, data });
   }
@@ -286,12 +321,38 @@ export class P2PBridge {
       swarmAgents: swarmState.agents,
       activePaneId: this.activePaneId,
     });
+
+    for (const [pId, dims] of this.terminalDimensions.entries()) {
+      const buf = this.terminalBuffers.get(pId) || '';
+      this.send('terminal:sync', {
+        paneId: pId,
+        cols: dims.cols,
+        rows: dims.rows,
+        buffer: buf,
+      });
+    }
   }
 
   private async handleMessage(raw: string) {
     try {
       const msg = JSON.parse(raw);
       switch (msg.type) {
+        case 'terminal:request_sync': {
+          const { paneId } = msg.payload || {};
+          const targetPane = paneId || this.activePaneId;
+          if (targetPane) {
+            const dims = this.terminalDimensions.get(targetPane) || { cols: 80, rows: 24 };
+            const buf = this.terminalBuffers.get(targetPane) || '';
+            this.send('terminal:sync', {
+              paneId: targetPane,
+              cols: dims.cols,
+              rows: dims.rows,
+              buffer: buf,
+            });
+          }
+          break;
+        }
+
         case 'terminal:input': {
           const { paneId, data } = msg.payload || {};
           const targetPane = paneId || this.activePaneId;
@@ -309,6 +370,7 @@ export class P2PBridge {
           const { paneId, cols, rows } = msg.payload || {};
           const targetPane = paneId || this.activePaneId;
           if (targetPane && cols && rows) {
+            this.terminalDimensions.set(targetPane, { cols, rows });
             await invoke('pty_resize', { paneId: targetPane, cols, rows });
           }
           break;
@@ -318,6 +380,14 @@ export class P2PBridge {
           const { paneId } = msg.payload || {};
           if (paneId) {
             this.activePaneId = paneId;
+            const dims = this.terminalDimensions.get(paneId) || { cols: 80, rows: 24 };
+            const buf = this.terminalBuffers.get(paneId) || '';
+            this.send('terminal:sync', {
+              paneId,
+              cols: dims.cols,
+              rows: dims.rows,
+              buffer: buf,
+            });
           }
           break;
         }

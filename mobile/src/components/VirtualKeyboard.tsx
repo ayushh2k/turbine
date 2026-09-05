@@ -8,10 +8,28 @@ interface VirtualKeyboardProps {
 }
 
 export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKey, onClear }) => {
+  const [ctrlActive, setCtrlActive] = React.useState(false);
+
   const triggerKey = (data: string) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
+
+    if (ctrlActive) {
+      setCtrlActive(false);
+      // Map common Ctrl combinations
+      const lower = data.toLowerCase();
+      if (lower === 'c') { onKey('\x03'); return; }
+      if (lower === 'd') { onKey('\x04'); return; }
+      if (lower === 'z') { onKey('\x1a'); return; }
+      if (lower === 'l') { onKey('\x0c'); return; }
+      if (lower === 'a') { onKey('\x01'); return; }
+      if (lower === 'e') { onKey('\x05'); return; }
+      if (lower === 'r') { onKey('\x12'); return; }
+      if (lower === 'w') { onKey('\x17'); return; }
+      if (lower === 'u') { onKey('\x15'); return; }
+      if (lower === 'k') { onKey('\x0b'); return; }
+    }
     onKey(data);
   };
 
@@ -26,16 +44,28 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKey, onClear
           <Text style={styles.keyText}>Tab</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.keyBtn, ctrlActive && styles.ctrlKeyActive]}
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+            setCtrlActive(!ctrlActive);
+          }}
+        >
+          <Text style={[styles.keyText, ctrlActive && styles.ctrlTextActive]}>
+            {ctrlActive ? 'CTRL •' : 'Ctrl'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={[styles.keyBtn, styles.dangerKey]} onPress={() => triggerKey('\x03')}>
-          <Text style={[styles.keyText, styles.dangerText]}>Ctrl+C</Text>
+          <Text style={[styles.keyText, styles.dangerText]}>^C</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('\x04')}>
-          <Text style={styles.keyText}>Ctrl+D</Text>
+          <Text style={styles.keyText}>^D</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('\x1a')}>
-          <Text style={styles.keyText}>Ctrl+Z</Text>
+          <Text style={styles.keyText}>^Z</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('\x1b[A')}>
@@ -54,16 +84,32 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKey, onClear
           <Text style={styles.keyText}>▶</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('|')}>
+          <Text style={styles.keyText}>|</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('/')}>
+          <Text style={styles.keyText}>/</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('-')}>
+          <Text style={styles.keyText}>-</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('~')}>
+          <Text style={styles.keyText}>~</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={[styles.keyBtn, styles.agentKey]} onPress={() => triggerKey('y\n')}>
-          <Text style={[styles.keyText, styles.agentText]}>y (Approve)</Text>
+          <Text style={[styles.keyText, styles.agentText]}>y (Yes)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.keyBtn, styles.agentKey]} onPress={() => triggerKey('n\n')}>
-          <Text style={[styles.keyText, styles.agentText]}>n (Reject)</Text>
+          <Text style={[styles.keyText, styles.agentText]}>n (No)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.keyBtn} onPress={() => triggerKey('\r')}>
-          <Text style={styles.keyText}>↵ Enter</Text>
+          <Text style={styles.keyText}>↵</Text>
         </TouchableOpacity>
 
         {onClear && (
@@ -116,5 +162,13 @@ const styles = StyleSheet.create({
   },
   agentText: {
     color: '#00e5c8',
+  },
+  ctrlKeyActive: {
+    borderColor: '#00e5c8',
+    backgroundColor: 'rgba(0, 229, 200, 0.25)',
+  },
+  ctrlTextActive: {
+    color: '#00e5c8',
+    fontWeight: '700',
   },
 });
